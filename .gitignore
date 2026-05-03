@@ -1,0 +1,22 @@
+# テストデータ（ローカル管理）
+test/
+
+# ビルド成果物
+bin/
+obj/
+
+# Visual Studio 関連
+.vs/
+*.suo
+*.user
+
+# NuGet
+packages/
+*.nupkg
+
+# その他
+.DS_Store
+Thumbs.db
+
+# バックアップファイル
+*.bak
