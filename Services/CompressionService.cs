@@ -6,6 +6,17 @@ using SevenZip.Compression.LZMA;
 
 namespace KK_Archive.Services
 {
+    /// <summary>
+    /// LZMA 圧縮レベル。numFastBytes のみ変わる。
+    /// Dictionary サイズは常に 64 MiB なので KK_SaveLoadCompression との互換性は完全維持。
+    /// </summary>
+    public enum CompressionLevel
+    {
+        Fast    = 5,    // 最速（オリジナルプラグインと同じ）
+        Normal  = 32,   // バランス
+        Maximum = 128,  // 最高圧縮
+    }
+
     internal static class KkToken
     {
         public const string StudioToken     = "【KStudio】";
@@ -67,7 +78,8 @@ namespace KK_Archive.Services
         /// KK カードファイルを LZMA で圧縮する。
         /// 出力形式: [PNGデータ] [圧縮マーカー(101)] [トークン] [LZMAストリーム]
         /// </summary>
-        public static void CompressFile(string inputPath, string outputPath)
+        public static void CompressFile(string inputPath, string outputPath,
+                                        CompressionLevel level = CompressionLevel.Fast)
         {
             using var inFs  = new FileStream(inputPath,  FileMode.Open,   FileAccess.Read,  FileShare.ReadWrite);
             using var outFs = new FileStream(outputPath, FileMode.Create,  FileAccess.Write);
@@ -101,7 +113,7 @@ namespace KK_Archive.Services
 
             // PNG 以降のデータを LZMA 圧縮して出力
             using var msCompressed = new MemoryStream();
-            LzmaCompress(inFs, msCompressed);
+            LzmaCompress(inFs, msCompressed, level);
             bw.Write(msCompressed.ToArray());
         }
 
@@ -231,10 +243,22 @@ namespace KK_Archive.Services
         // LZMA helpers
         // ---------------------------------------------------------------
 
-        private static void LzmaCompress(Stream input, Stream output)
+        private static void LzmaCompress(Stream input, Stream output,
+                                          CompressionLevel level = CompressionLevel.Fast)
         {
+            var props = new object[]
+            {
+                1 << 26,           // DictionarySize: 64 MiB (互換性のため固定)
+                2,                 // PosStateBits
+                3,                 // LitContextBits
+                0,                 // LitPosBits
+                (int)level,        // NumFastBytes: 圧縮レベルによって変わる
+                "BT4",             // MatchFinder
+                true,              // EndMarker
+            };
+
             var encoder = new SevenZip.Compression.LZMA.Encoder();
-            encoder.SetCoderProperties(s_propIDs, s_properties);
+            encoder.SetCoderProperties(s_propIDs, props);
             encoder.WriteCoderProperties(output);
 
             long remaining = input.Length - input.Position;
@@ -265,4 +289,3 @@ namespace KK_Archive.Services
         }
     }
 }
-

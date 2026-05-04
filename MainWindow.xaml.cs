@@ -1,61 +1,77 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using KK_Archive.Models;
 using KK_Archive.Services;
-using DragEventArgs = System.Windows.DragEventArgs;
-using MessageBox = System.Windows.MessageBox;
+using DragDropEffects = System.Windows.DragDropEffects;
+using DragEventArgs  = System.Windows.DragEventArgs;
+using MessageBox     = System.Windows.MessageBox;
+using Point          = System.Windows.Point;
+using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+using DataFormats    = System.Windows.DataFormats;
+using DataObject     = System.Windows.DataObject;
+using ListView       = System.Windows.Controls.ListView;
 
 namespace KK_Archive
 {
     public partial class MainWindow : Window
     {
-        private string outputDirectory = string.Empty;
-        private List<string> filesToProcess = new List<string>();
-        private int successCount = 0;
-        private int failCount = 0;
-        private Stopwatch stopwatch = new Stopwatch();
+        private readonly ObservableCollection<FileEntry>       _inputFiles  = new();
+        private readonly ObservableCollection<OutputFileEntry> _outputFiles = new();
+
+        private string  _outputDirectory = string.Empty;
+        private int     _successCount;
+        private int     _failCount;
+        private readonly Stopwatch _stopwatch = new();
+
+        // For OLE drag initiation
+        private Point   _dragStartPoint;
+        private bool    _isDragging;
 
         public MainWindow()
         {
             InitializeComponent();
+            LvInput.ItemsSource  = _inputFiles;
+            LvOutput.ItemsSource = _outputFiles;
         }
 
-        private void Window_DragEnter(object sender, global::System.Windows.DragEventArgs e)
+        // ─────────────────────────────────────────────
+        // Drop from Explorer → Window
+        // ─────────────────────────────────────────────
+        private void Window_DragEnter(object sender, DragEventArgs e)
         {
-            if (e.Data.GetDataPresent(global::System.Windows.DataFormats.FileDrop))
-                e.Effects = global::System.Windows.DragDropEffects.Copy;
-            else
-                e.Effects = global::System.Windows.DragDropEffects.None;
+            e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop)
+                ? DragDropEffects.Copy
+                : DragDropEffects.None;
             e.Handled = true;
         }
 
-        private void Window_Drop(object sender, global::System.Windows.DragEventArgs e)
+        private void Window_Drop(object sender, DragEventArgs e)
         {
-            if (e.Data.GetDataPresent(global::System.Windows.DataFormats.FileDrop))
+            if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
+
+            var paths = (string[])e.Data.GetData(DataFormats.FileDrop);
+            foreach (var path in paths)
             {
-                string[] paths = (string[])e.Data.GetData(global::System.Windows.DataFormats.FileDrop);
-                filesToProcess.Clear();
-                lstFiles.Items.Clear();
-                foreach (var path in paths)
-                {
-                    if (Directory.Exists(path))
-                    {
-                        AddFilesFromDirectory(path);
-                        lstFiles.Items.Add($"[DIR] {path}");
-                    }
-                    else if (File.Exists(path) && Path.GetExtension(path).ToLower() == ".png")
-                    {
-                        filesToProcess.Add(path);
-                        lstFiles.Items.Add($"[FILE] {path}");  // フルパスで表示
-                    }
-                }
-                TxtStatus.Text = $"{filesToProcess.Count} 件のファイルを追加しました。";
+                if (Directory.Exists(path))
+                    AddFilesFromDirectory(path);
+                else if (File.Exists(path) && path.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                    AddFile(path);
             }
+            UpdateInputCount();
+        }
+
+        private void AddFile(string path)
+        {
+            if (_inputFiles.Any(f => f.FullPath.Equals(path, StringComparison.OrdinalIgnoreCase))) return;
+            _inputFiles.Add(new FileEntry(path));
         }
 
         private void AddFilesFromDirectory(string dirPath)
@@ -63,10 +79,7 @@ namespace KK_Archive
             try
             {
                 foreach (var file in Directory.GetFiles(dirPath, "*.png", SearchOption.AllDirectories))
-                {
-                    filesToProcess.Add(file);
-                    lstFiles.Items.Add($"[FILE] {file}");  // フルパスで階層を表示
-                }
+                    AddFile(file);
             }
             catch (Exception ex)
             {
@@ -74,215 +87,243 @@ namespace KK_Archive
             }
         }
 
+        private void UpdateInputCount()
+        {
+            TxtInputCount.Text = _inputFiles.Count > 0 ? $"({_inputFiles.Count} 件)" : "";
+            TxtDropHint.Visibility = _inputFiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void UpdateOutputCount()
+        {
+            TxtOutputCount.Text = _outputFiles.Count > 0 ? $"({_outputFiles.Count} 件)" : "";
+        }
+
+        // ─────────────────────────────────────────────
+        // OLE Drag FROM ListView to Explorer
+        // ─────────────────────────────────────────────
+        private void Lv_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _dragStartPoint = e.GetPosition(null);
+        }
+
+        private void Lv_PreviewMouseMove(object sender, MouseEventArgs e)
+        {
+            if (e.LeftButton != MouseButtonState.Pressed || _isDragging) return;
+
+            var pos   = e.GetPosition(null);
+            var delta = pos - _dragStartPoint;
+
+            if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
+                Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
+                return;
+
+            var lv = sender as ListView;
+            if (lv?.SelectedItem is not FileEntry entry) return;
+
+            // Collect all selected items
+            var paths = lv.SelectedItems
+                          .OfType<FileEntry>()
+                          .Select(f => f.FullPath)
+                          .Where(File.Exists)
+                          .ToArray();
+
+            if (paths.Length == 0) return;
+
+            _isDragging = true;
+            var data = new DataObject(DataFormats.FileDrop, paths);
+            DragDrop.DoDragDrop(lv, data, DragDropEffects.Copy | DragDropEffects.Move);
+            _isDragging = false;
+        }
+
+        // ─────────────────────────────────────────────
+        // Double-click to open
+        // ─────────────────────────────────────────────
+        private void LvInput_DoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (LvInput.SelectedItem is FileEntry entry)
+                OpenFile(entry.FullPath);
+        }
+
+        private void LvOutput_DoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (LvOutput.SelectedItem is OutputFileEntry entry)
+                OpenFile(entry.FullPath);
+        }
+
+        private static void OpenFile(string path)
+        {
+            if (!File.Exists(path)) return;
+            Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
+        }
+
+        // ─────────────────────────────────────────────
+        // Toolbar buttons
+        // ─────────────────────────────────────────────
         private void BtnSelectOutput_Click(object sender, RoutedEventArgs e)
         {
             var dialog = new System.Windows.Forms.FolderBrowserDialog();
             if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             {
-                outputDirectory = dialog.SelectedPath;
-                TxtOutputPath.Text = $"出力先: {outputDirectory}";
+                _outputDirectory = dialog.SelectedPath;
+                TxtOutputPath.Text = $"出力先: {_outputDirectory}";
             }
         }
 
-        private async void BtnAuto_Click(object sender, RoutedEventArgs e)
-        {
-            await ProcessFilesAuto();
-        }
+        private async void BtnAuto_Click       (object sender, RoutedEventArgs e) => await ProcessFilesAsync(null);
+        private async void BtnCompress_Click   (object sender, RoutedEventArgs e) => await ProcessFilesAsync(true);
+        private async void BtnDecompress_Click (object sender, RoutedEventArgs e) => await ProcessFilesAsync(false);
 
-        private async void BtnCompress_Click(object sender, RoutedEventArgs e)
+        private void BtnClear_Click(object sender, RoutedEventArgs e)
         {
-            await ProcessFiles(true);
-        }
-
-        private async void BtnDecompress_Click(object sender, RoutedEventArgs e)
-        {
-            await ProcessFiles(false);
-        }
-
-        private async Task ProcessFilesAuto()
-        {
-            if (filesToProcess.Count == 0)
-            {
-                MessageBox.Show("処理するファイルがありません。");
-                return;
-            }
-            if (string.IsNullOrEmpty(outputDirectory))
-            {
-                MessageBox.Show("出力先を選択してください。");
-                return;
-            }
-
-            successCount = 0;
-            failCount = 0;
-            stopwatch.Restart();
+            _inputFiles.Clear();
+            _outputFiles.Clear();
+            UpdateInputCount();
+            UpdateOutputCount();
             ProgressBar.Value = 0;
-            TxtStatus.Text = "処理中...";
+            TxtStatus.Text = "クリアしました。";
+            TxtStats.Text  = "";
+        }
 
-            int total = filesToProcess.Count;
+        private CompressionLevel GetSelectedLevel()
+        {
+            var tag = (CmbLevel.SelectedItem as ComboBoxItem)?.Tag as string ?? "Fast";
+            return tag switch
+            {
+                "Normal"  => CompressionLevel.Normal,
+                "Maximum" => CompressionLevel.Maximum,
+                _         => CompressionLevel.Fast,
+            };
+        }
+
+        // ─────────────────────────────────────────────
+        // Core processing
+        // ─────────────────────────────────────────────
+        private async Task ProcessFilesAsync(bool? compress)
+        {
+            if (_inputFiles.Count == 0)      { MessageBox.Show("処理するファイルがありません。");   return; }
+            if (string.IsNullOrEmpty(_outputDirectory)) { MessageBox.Show("出力先を選択してください。"); return; }
+
+            _successCount = 0;
+            _failCount    = 0;
+            _stopwatch.Restart();
+            ProgressBar.Value = 0;
+            TxtStatus.Text    = "処理中...";
+
+            var level    = GetSelectedLevel();
+            var files    = _inputFiles.ToList();   // snapshot
+            int total    = files.Count;
+
             for (int i = 0; i < total; i++)
             {
-                var file = filesToProcess[i];
-                bool isCompressed = CompressionService.IsCompressed(file);
-                bool success = await Task.Run(() => ProcessSingleFile(file, !isCompressed));
-                if (success) successCount++;
-                else failCount++;
+                var entry = files[i];
+                bool doCompress = compress ?? !CompressionService.IsCompressed(entry.FullPath);
 
-                ProgressBar.Value = (i + 1) * 100.0 / total;
-                TxtStatus.Text = $"処理中... ({i + 1}/{total})";
+                long origSize = entry.SizeBytes;
+                var  result   = await Task.Run(() => ProcessSingleFile(entry.FullPath, doCompress, level));
+
+                if (result.Success)
+                {
+                    _successCount++;
+                    Dispatcher.Invoke(() =>
+                    {
+                        _outputFiles.Add(new OutputFileEntry(result.OutputPath!, origSize));
+                        UpdateOutputCount();
+                    });
+                }
+                else _failCount++;
+
+                ProgressBar.Value  = (i + 1) * 100.0 / total;
+                TxtStatus.Text     = $"処理中... ({i + 1}/{total})";
             }
 
-            stopwatch.Stop();
-            UpdateStats(total);
-            TxtStatus.Text = "処理完了！";
+            _stopwatch.Stop();
+            UpdateStats(files);
+            TxtStatus.Text = $"処理完了！ 成功: {_successCount} / 失敗: {_failCount}";
         }
 
-        private async Task ProcessFiles(bool compress)
+        private record ProcessResult(bool Success, string? OutputPath);
+
+        private ProcessResult ProcessSingleFile(string inputPath, bool compress, CompressionLevel level)
         {
-            if (filesToProcess.Count == 0)
-            {
-                MessageBox.Show("処理するファイルがありません。");
-                return;
-            }
-            if (string.IsNullOrEmpty(outputDirectory))
-            {
-                MessageBox.Show("出力先を選択してください。");
-                return;
-            }
-
-            successCount = 0;
-            failCount = 0;
-            stopwatch.Restart();
-            ProgressBar.Value = 0;
-            TxtStatus.Text = "処理中...";
-
-            int total = filesToProcess.Count;
-            for (int i = 0; i < total; i++)
-            {
-                var file = filesToProcess[i];
-                bool success = await Task.Run(() => ProcessSingleFile(file, compress));
-                if (success) successCount++;
-                else failCount++;
-
-                ProgressBar.Value = (i + 1) * 100.0 / total;
-                TxtStatus.Text = $"処理中... ({i + 1}/{total})";
-            }
-
-            stopwatch.Stop();
-            UpdateStats(total);
-            TxtStatus.Text = "処理完了！";
-        }
-
-        private bool ProcessSingleFile(string inputPath, bool compress)
-        {
+            string backupPath = inputPath + ".bak";
             try
             {
-                string backupPath = inputPath + ".bak";
-                File.Copy(inputPath, backupPath, true);
+                File.Copy(inputPath, backupPath, overwrite: true);
 
-                string relativePath = GetRelativePath(inputPath);
-                string outputPath = Path.Combine(outputDirectory, relativePath);
+                string relativePath = GetRelativePath(inputPath, _inputFiles.Select(f => f.FullPath).ToList());
+                string outputPath   = Path.Combine(_outputDirectory, relativePath);
 
-                // 出力ディレクトリを階層ごと作成（重要！）
                 string? outputDir = Path.GetDirectoryName(outputPath);
                 if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
                     Directory.CreateDirectory(outputDir);
 
-                if (compress)
-                    CompressionService.CompressFile(inputPath, outputPath);
-                else
-                    CompressionService.DecompressFile(inputPath, outputPath);
+                if (compress) CompressionService.CompressFile(inputPath, outputPath, level);
+                else          CompressionService.DecompressFile(inputPath, outputPath);
 
-                if (!File.Exists(outputPath))
-                    throw new Exception("出力ファイルが作成されませんでした。");
+                if (!File.Exists(outputPath)) throw new Exception("出力ファイルが作成されませんでした。");
 
-                // 成功時はバックアップを削除
-                if (File.Exists(backupPath))
-                    File.Delete(backupPath);
-
-                return true;
+                if (File.Exists(backupPath)) File.Delete(backupPath);
+                return new ProcessResult(true, outputPath);
             }
             catch (Exception ex)
             {
-                // ロールバック
-                string backupPath = inputPath + ".bak";
-                if (File.Exists(backupPath))
-                {
-                    File.Copy(backupPath, inputPath, true);
-                    File.Delete(backupPath);
-                }
+                if (File.Exists(backupPath)) { File.Copy(backupPath, inputPath, true); File.Delete(backupPath); }
                 Dispatcher.Invoke(() => MessageBox.Show($"処理失敗: {Path.GetFileName(inputPath)}\n{ex.Message}"));
-                return false;
+                return new ProcessResult(false, null);
             }
         }
 
-        private string GetRelativePath(string fullPath)
+        // ─────────────────────────────────────────────
+        // Helpers
+        // ─────────────────────────────────────────────
+        private static string GetRelativePath(string fullPath, List<string> allFiles)
         {
-            if (filesToProcess.Count == 0)
-                return Path.GetFileName(fullPath);
+            if (allFiles.Count == 0) return Path.GetFileName(fullPath);
 
-            // 全ファイルの共通ディレクトリを探す
-            var dirs = filesToProcess
+            var dirs = allFiles
                 .Select(p => Path.GetDirectoryName(p))
                 .Where(d => !string.IsNullOrEmpty(d))
                 .Select(d => d!)
                 .Distinct()
                 .ToList();
 
-            if (dirs.Count == 0)
-                return Path.GetFileName(fullPath);
+            if (dirs.Count == 0) return Path.GetFileName(fullPath);
 
-            // 最長共通プレフィックスを見つける
             string commonDir = dirs[0];
             foreach (var dir in dirs.Skip(1))
             {
-                while (!dir.StartsWith(commonDir, StringComparison.OrdinalIgnoreCase) && commonDir.Length > 0)
-                {
+                while (commonDir.Length > 0 &&
+                       !dir.StartsWith(commonDir, StringComparison.OrdinalIgnoreCase))
                     commonDir = Path.GetDirectoryName(commonDir) ?? "";
-                }
-                if (string.IsNullOrEmpty(commonDir))
-                    break;
+                if (commonDir.Length == 0) break;
             }
 
-            if (string.IsNullOrEmpty(commonDir))
-                return fullPath; // 共通ディレクトリがない場合はフルパス
+            if (string.IsNullOrEmpty(commonDir)) return fullPath;
 
-            // 相対パスを生成（階層保持）
             if (fullPath.StartsWith(commonDir, StringComparison.OrdinalIgnoreCase))
-            {
-                string relativePath = fullPath.Substring(commonDir.Length).TrimStart(Path.DirectorySeparatorChar);
-                return relativePath;
-            }
+                return fullPath[commonDir.Length..].TrimStart(Path.DirectorySeparatorChar);
 
             return fullPath;
         }
 
-        private void UpdateStats(int total)
+        private void UpdateStats(List<FileEntry> files)
         {
-            var totalSizeBefore = filesToProcess.Sum(f => new FileInfo(f).Length);
-            var totalSizeAfter = filesToProcess.Sum(f =>
-            {
-                string relativePath = GetRelativePath(f);
-                string outputPath = Path.Combine(outputDirectory, relativePath);
-                return File.Exists(outputPath) ? new FileInfo(outputPath).Length : 0;
-            });
+            long before = files.Sum(f => f.SizeBytes);
+            long after  = _outputFiles.Sum(f => f.SizeBytes);
+            double rate = before > 0 ? (1 - (double)after / before) * 100 : 0;
 
-            double compressionRate = totalSizeBefore > 0 ? (1 - (double)totalSizeAfter / totalSizeBefore) * 100 : 0;
-            TxtStats.Text = $"成功: {successCount} 件, 失敗: {failCount} 件\n" +
-                            $"元サイズ: {FormatSize(totalSizeBefore)}, 処理後: {FormatSize(totalSizeAfter)}\n" +
-                            $"圧縮率: {compressionRate:F2}%, 時間: {stopwatch.Elapsed.TotalSeconds:F2}秒";
+            TxtStats.Text = $"元: {FormatSize(before)}  →  後: {FormatSize(after)}" +
+                            $"  ({(rate >= 0 ? "-" : "+")}{Math.Abs(rate):F1}%)  " +
+                            $"{_stopwatch.Elapsed.TotalSeconds:F2}秒";
         }
 
-        private string FormatSize(long bytes)
+        private static string FormatSize(long bytes)
         {
             string[] sizes = { "B", "KB", "MB", "GB" };
-            int order = 0;
+            int   order = 0;
             double size = bytes;
-            while (size >= 1024 && order < sizes.Length - 1)
-            {
-                order++;
-                size /= 1024;
-            }
-            return $"{size:F2} {sizes[order]}";
+            while (size >= 1024 && order < sizes.Length - 1) { order++; size /= 1024; }
+            return $"{size:F1} {sizes[order]}";
         }
     }
 }

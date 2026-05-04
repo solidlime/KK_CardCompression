@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish (single-file self-contained)
+        run: |
+          dotnet publish -c Release -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -o publish/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "KK Archive ${{ github.ref_name }}"
+          body: |
+            ## KK Archive ${{ github.ref_name }}
+
+            コイカツ セーブデータ圧縮・解凍ツール
+
+            ### ダウンロード
+            `KK_Archive.exe` をダウンロードして実行するだけで使えます（インストール不要）。
+
+            ### 変更点
+            タグのコミットメッセージを参照してください。
+          files: publish/KK_Archive.exe
+          draft: false
+          prerelease: false
