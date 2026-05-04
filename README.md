@@ -1,101 +1,82 @@
 # KK Archive
 
-> コイカツ キャラカード・衣装カード・スタジオシーンの **圧縮・解凍ツール**
+Koikatsu のカード/シーン PNG を圧縮・解凍するデスクトップツールです。
 
-[![GitHub Release](https://img.shields.io/github/v/release/solidlime/KK_Archive?style=flat-square&color=00D4C8)](https://github.com/solidlime/KK_Archive/releases/latest)
-[![.NET 8](https://img.shields.io/badge/.NET-8-blueviolet?style=flat-square)](https://dotnet.microsoft.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+## スクリーンショット
 
----
+![KKA メイン画面](docs/images/ui-main.png)
 
-## 概要
+## 互換性
 
-KK_SaveLoadCompression プラグインと **完全互換** の LZMA 圧縮・解凍を行う Windows デスクトップアプリです。
+圧縮レベルは以下の 3 種類を選べますが、すべて互換性を維持します。
 
-- キャラカード / 衣装カード / スタジオシーンの .png ファイルをまとめて圧縮・解凍
-- ドラッグ＆ドロップ対応（ファイル・フォルダ両対応）
-- 2 ペイン UI：入力ファイル一覧 ↔ 出力ファイル一覧
-- 圧縮レベル選択（速い / 標準 / 最大圧縮）
-- 出力ファイルをダブルクリックで開く
-- 出力ファイルをエクスプローラへドラッグ＆ドロップ
+- ⚡ 速い (互換)
+- ⚖ 標準
+- ◆ 最大圧縮
 
----
+互換性を維持できる理由:
+- LZMA DictionarySize は常に 64 MiB 固定
+- LZMA プロパティはストリーム先頭に埋め込まれ、デコーダが自動で復元
 
-## ダウンロード
+## 主な機能
 
-[**Releases ページ**](https://github.com/solidlime/KK_Archive/releases/latest) から KK_Archive.exe をダウンロードしてください。
-インストール不要、.exe を直接実行できます。
+- 入力/出力の 2 ペイン一覧
+- 出力サイズ列に個別進捗バーを表示（列幅に追従）
+- ステータス部に全体進捗バーを表示
+- ファイル/フォルダのドラッグ & ドロップ
+- 出力ファイルのダブルクリックで開く
+- 出力ファイルを Explorer にドラッグ可能
+- 入力一覧で Delete キー削除（実ファイルは削除しない）
+- 出力先フォルダを exe ルートの ini に保存し、次回起動時に復元
+- 圧縮率は処理完了後のみ表示（処理中は `—`）
+- 圧縮レベルはクリックでドロップダウン選択可能
 
----
+## 設定保存
 
-## 使い方
+実行ファイルと同じフォルダに `KK_Archive.ini` を作成します。
 
-1. KK_Archive.exe を起動
-2. .png ファイルまたはフォルダをウィンドウにドロップ（左ペインに一覧表示）
-3. 出力先フォルダを「📁 出力先選択」で指定
-4. 処理方法を選択：
-   - **✦ 自動判定** — 圧縮済みなら解凍、未圧縮なら圧縮
-   - **▲ 圧縮** — 強制的に LZMA 圧縮
-   - **▼ 解凍** — 強制的に解凍
-5. 右ペインに出力ファイルが表示されます
+保存項目:
+- LastOutputDirectory
+- CompressionLevel
 
-### 圧縮レベル
+## 圧縮率表示
 
-| レベル | numFastBytes | 用途 |
-|--------|-------------|------|
-| ⚡ 速い (互換) | 5 | デフォルト。オリジナルプラグインと同じ設定 |
-| ⚖ 標準 | 32 | バランス型（やや遅い、やや小さい） |
-| ◆ 最大圧縮 | 128 | 最高圧縮率（時間がかかる） |
+- 圧縮できた場合: `xx.x%削減`
+- サイズが増えた場合: `xx.x%増加`
 
-> **互換性について**: どのレベルでも辞書サイズ (64 MiB) は変わらないため、KK_SaveLoadCompression で読み込めます。LZMA プロパティはストリームの先頭 5 バイトに保存されているため、デコーダが自動的に適切な設定を選択します。
+## ビルド
 
----
-
-## フォーマット仕様
-
-### キャラカード・衣装カード
-
-\\\
-[PNG データ] [int32: 100=非圧縮 / 101=圧縮済] [トークン(文字列)] [データ本体]
-\\\
-
-### スタジオシーン
-
-\\\
-[PNG データ] [バージョン文字列 "100.x.x.x"=非圧縮 / "101.x.x.x"=圧縮済] [データ本体]
-\\\
-
-圧縮済みの場合、データ本体は LZMA ストリーム（5 バイト LZMA プロパティ + 8 バイト長 + 圧縮データ）です。
-
----
-
-## ビルド方法
-
-\\\
-git clone https://github.com/solidlime/KK_Archive.git
-cd KK_Archive
+```bash
 dotnet build -c Release
-\\\
+```
 
-### 自己完結型 EXE を生成
+## 実行
 
-\\\
-dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish/
-\\\
+```bash
+dotnet run
+```
 
----
+## ブランチ運用（main を既定、master を削除）
 
-## リリース
+このリポジトリの運用を `main` に統一する場合は、次の順で実施します。
 
- で始まるタグ (0.2.0 など) をプッシュすると GitHub Actions が自動で EXE をビルドしてリリースを作成します。
+1. GitHub の Settings > Branches で default branch を `main` に変更
+2. ローカルで最新化
 
-\\\
-git tag v0.2.0
-git push origin v0.2.0
-\\\
+```bash
+git fetch origin --prune
+```
 
----
+3. リモート `master` を削除
 
-## ライセンス
+```bash
+git push origin --delete master
+```
 
-MIT License — 詳細は [LICENSE](LICENSE) を参照してください。
+4. 確認
+
+```bash
+git branch -r
+```
+
+`origin/master` が表示されなければ完了です。

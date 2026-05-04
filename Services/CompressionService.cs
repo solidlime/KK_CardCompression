@@ -39,17 +39,6 @@ namespace KK_Archive.Services
             CoderPropID.EndMarker,
         };
 
-        private static readonly object[] s_properties =
-        {
-            1 << 26,  // 64 MiB dictionary (VeryLarge)
-            2,        // posStateBits
-            3,        // litContextBits
-            0,        // litPosBits
-            5,        // numFastBytes (Fastest)
-            "BT4",    // matchFinder
-            true,     // endMarker
-        };
-
         // ---------------------------------------------------------------
         // Public API
         // ---------------------------------------------------------------
@@ -79,12 +68,15 @@ namespace KK_Archive.Services
         /// 出力形式: [PNGデータ] [圧縮マーカー(101)] [トークン] [LZMAストリーム]
         /// </summary>
         public static void CompressFile(string inputPath, string outputPath,
-                                        CompressionLevel level = CompressionLevel.Fast)
+                                        CompressionLevel level = CompressionLevel.Fast,
+                                        IProgress<double>? progress = null)
         {
             using var inFs  = new FileStream(inputPath,  FileMode.Open,   FileAccess.Read,  FileShare.ReadWrite);
             using var outFs = new FileStream(outputPath, FileMode.Create,  FileAccess.Write);
             using var br    = new BinaryReader(inFs,  Encoding.UTF8, leaveOpen: true);
             using var bw    = new BinaryWriter(outFs, Encoding.UTF8, leaveOpen: true);
+
+            progress?.Report(0.01);
 
             byte[] pngData   = LoadPngBytes(br);
             long   extraStart = inFs.Position;
@@ -103,6 +95,7 @@ namespace KK_Archive.Services
 
             // PNG を出力
             bw.Write(pngData);
+            progress?.Report(0.08);
 
             // 圧縮マーカー + トークン を出力
             if (token == KkToken.StudioToken)
@@ -110,24 +103,30 @@ namespace KK_Archive.Services
             else
                 bw.Write(101); // int32
             bw.Write(token);
+            progress?.Report(0.12);
 
             // PNG 以降のデータを LZMA 圧縮して出力
             using var msCompressed = new MemoryStream();
-            LzmaCompress(inFs, msCompressed, level);
+            LzmaCompress(inFs, msCompressed, level, progress);
             bw.Write(msCompressed.ToArray());
+            progress?.Report(1.0);
         }
 
         /// <summary>
         /// LZMA 圧縮済み KK カードファイルを元に戻す。
         /// </summary>
-        public static void DecompressFile(string inputPath, string outputPath)
+        public static void DecompressFile(string inputPath, string outputPath,
+                                          IProgress<double>? progress = null)
         {
             using var inFs  = new FileStream(inputPath,  FileMode.Open,   FileAccess.Read,  FileShare.ReadWrite);
             using var outFs = new FileStream(outputPath, FileMode.Create,  FileAccess.Write);
             using var br    = new BinaryReader(inFs,  Encoding.UTF8, leaveOpen: true);
             using var bw    = new BinaryWriter(outFs, Encoding.UTF8, leaveOpen: true);
 
+            progress?.Report(0.01);
+
             byte[] pngData = LoadPngBytes(br);
+            progress?.Report(0.08);
 
             if (!GuessCompressed(br))
                 throw new InvalidDataException("このファイルは圧縮されていません。");
@@ -144,12 +143,14 @@ namespace KK_Archive.Services
 
             // トークン文字列をスキップ
             br.ReadString();
+            progress?.Report(0.12);
 
             // PNG を出力してから LZMA 展開（展開結果が [100+token+rawData]）
             bw.Write(pngData);
             bw.Flush();
 
-            LzmaDecompress(inFs, outFs);
+            LzmaDecompress(inFs, outFs, progress);
+            progress?.Report(1.0);
         }
 
         // ---------------------------------------------------------------
@@ -244,7 +245,8 @@ namespace KK_Archive.Services
         // ---------------------------------------------------------------
 
         private static void LzmaCompress(Stream input, Stream output,
-                                          CompressionLevel level = CompressionLevel.Fast)
+                                         CompressionLevel level = CompressionLevel.Fast,
+                                         IProgress<double>? progress = null)
         {
             var props = new object[]
             {
@@ -265,10 +267,15 @@ namespace KK_Archive.Services
             for (int i = 0; i < 8; i++)
                 output.WriteByte((byte)(remaining >> (8 * i)));
 
-            encoder.Code(input, output, -1, -1, null);
+            ICodeProgress? codeProgress = null;
+            if (progress != null)
+                codeProgress = new LzmaCodeProgress(remaining, progress, 0.12, 0.96);
+
+            encoder.Code(input, output, -1, -1, codeProgress);
         }
 
-        private static void LzmaDecompress(Stream input, Stream output)
+        private static void LzmaDecompress(Stream input, Stream output,
+                                           IProgress<double>? progress = null)
         {
             var    decoder = new SevenZip.Compression.LZMA.Decoder();
             byte[] props   = new byte[5];
@@ -285,7 +292,37 @@ namespace KK_Archive.Services
             }
 
             long compressedSize = input.Length - input.Position;
-            decoder.Code(input, output, compressedSize, fileLength, null);
+            ICodeProgress? codeProgress = null;
+            if (progress != null)
+                codeProgress = new LzmaCodeProgress(fileLength, progress, 0.12, 0.96);
+
+            decoder.Code(input, output, compressedSize, fileLength, codeProgress);
+        }
+
+        private sealed class LzmaCodeProgress : ICodeProgress
+        {
+            private readonly long _totalBytes;
+            private readonly IProgress<double> _progress;
+            private readonly double _start;
+            private readonly double _end;
+
+            public LzmaCodeProgress(long totalBytes, IProgress<double> progress, double start, double end)
+            {
+                _totalBytes = totalBytes <= 0 ? 1 : totalBytes;
+                _progress = progress;
+                _start = start;
+                _end = end;
+            }
+
+            public void SetProgress(long inSize, long outSize)
+            {
+                if (inSize < 0) return;
+                var ratio = (double)inSize / _totalBytes;
+                if (ratio < 0) ratio = 0;
+                if (ratio > 1) ratio = 1;
+                var value = _start + ((_end - _start) * ratio);
+                _progress.Report(value);
+            }
         }
     }
 }
