@@ -40,12 +40,19 @@ namespace KK_Archive
             {
                 string[] paths = (string[])e.Data.GetData(global::System.Windows.DataFormats.FileDrop);
                 filesToProcess.Clear();
+                lstFiles.Items.Clear();
                 foreach (var path in paths)
                 {
                     if (Directory.Exists(path))
+                    {
                         AddFilesFromDirectory(path);
+                        lstFiles.Items.Add($"[DIR] {path}");
+                    }
                     else if (File.Exists(path) && Path.GetExtension(path).ToLower() == ".png")
+                    {
                         filesToProcess.Add(path);
+                        lstFiles.Items.Add($"[FILE] {path}");  // フルパスで表示
+                    }
                 }
                 TxtStatus.Text = $"{filesToProcess.Count} 件のファイルを追加しました。";
             }
@@ -56,7 +63,10 @@ namespace KK_Archive
             try
             {
                 foreach (var file in Directory.GetFiles(dirPath, "*.png", SearchOption.AllDirectories))
+                {
                     filesToProcess.Add(file);
+                    lstFiles.Items.Add($"[FILE] {file}");  // フルパスで階層を表示
+                }
             }
             catch (Exception ex)
             {
@@ -171,7 +181,11 @@ namespace KK_Archive
 
                 string relativePath = GetRelativePath(inputPath);
                 string outputPath = Path.Combine(outputDirectory, relativePath);
-                Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
+
+                // 出力ディレクトリを階層ごと作成（重要！）
+                string? outputDir = Path.GetDirectoryName(outputPath);
+                if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
+                    Directory.CreateDirectory(outputDir);
 
                 if (compress)
                     CompressionService.CompressFile(inputPath, outputPath);
@@ -181,10 +195,15 @@ namespace KK_Archive
                 if (!File.Exists(outputPath))
                     throw new Exception("出力ファイルが作成されませんでした。");
 
+                // 成功時はバックアップを削除
+                if (File.Exists(backupPath))
+                    File.Delete(backupPath);
+
                 return true;
             }
             catch (Exception ex)
             {
+                // ロールバック
                 string backupPath = inputPath + ".bak";
                 if (File.Exists(backupPath))
                 {
@@ -198,18 +217,43 @@ namespace KK_Archive
 
         private string GetRelativePath(string fullPath)
         {
-            if (filesToProcess.Count == 0) return Path.GetFileName(fullPath);
+            if (filesToProcess.Count == 0)
+                return Path.GetFileName(fullPath);
 
-            var dirs = filesToProcess.Select(p => Path.GetDirectoryName(p)).Distinct();
-            string commonDir = "";
-            foreach (var dir in dirs)
+            // 全ファイルの共通ディレクトリを探す
+            var dirs = filesToProcess
+                .Select(p => Path.GetDirectoryName(p))
+                .Where(d => !string.IsNullOrEmpty(d))
+                .Select(d => d!)
+                .Distinct()
+                .ToList();
+
+            if (dirs.Count == 0)
+                return Path.GetFileName(fullPath);
+
+            // 最長共通プレフィックスを見つける
+            string commonDir = dirs[0];
+            foreach (var dir in dirs.Skip(1))
             {
-                if (fullPath.StartsWith(dir, StringComparison.OrdinalIgnoreCase) && dir.Length > commonDir.Length)
-                    commonDir = dir;
+                while (!dir.StartsWith(commonDir, StringComparison.OrdinalIgnoreCase) && commonDir.Length > 0)
+                {
+                    commonDir = Path.GetDirectoryName(commonDir) ?? "";
+                }
+                if (string.IsNullOrEmpty(commonDir))
+                    break;
             }
 
-            return string.IsNullOrEmpty(commonDir) ? Path.GetFileName(fullPath) :
-                fullPath.Substring(commonDir.Length).TrimStart(Path.DirectorySeparatorChar);
+            if (string.IsNullOrEmpty(commonDir))
+                return fullPath; // 共通ディレクトリがない場合はフルパス
+
+            // 相対パスを生成（階層保持）
+            if (fullPath.StartsWith(commonDir, StringComparison.OrdinalIgnoreCase))
+            {
+                string relativePath = fullPath.Substring(commonDir.Length).TrimStart(Path.DirectorySeparatorChar);
+                return relativePath;
+            }
+
+            return fullPath;
         }
 
         private void UpdateStats(int total)
