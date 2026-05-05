@@ -179,6 +179,28 @@ namespace KK_Archive
         private void LvInput_MouseLeave(object sender, MouseEventArgs e)
             => PreviewPopup.IsOpen = false;
 
+        private void LvOutput_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (!_isPreviewEnabled) return;
+
+            var element = e.OriginalSource as DependencyObject;
+            while (element != null && element is not System.Windows.Controls.ListViewItem)
+                element = VisualTreeHelper.GetParent(element);
+
+            if (element is System.Windows.Controls.ListViewItem item && item.DataContext is OutputFileEntry entry)
+            {
+                UpdatePreview(entry);
+                PreviewPopup.IsOpen = true;
+            }
+            else
+            {
+                PreviewPopup.IsOpen = false;
+            }
+        }
+
+        private void LvOutput_MouseLeave(object sender, MouseEventArgs e)
+            => PreviewPopup.IsOpen = false;
+
         private void UpdatePreview(FileEntry? entry)
         {
             if (entry == null)

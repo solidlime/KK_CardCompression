@@ -238,6 +238,8 @@
                               MouseDoubleClick="LvOutput_DoubleClick"
                               PreviewMouseLeftButtonDown="Lv_PreviewMouseLeftButtonDown"
                               PreviewMouseMove="Lv_PreviewMouseMove"
+                              MouseMove="LvOutput_MouseMove"
+                              MouseLeave="LvOutput_MouseLeave"
                               Loaded="LvOutput_Loaded"
                               SelectionMode="Extended">
                         <ListView.View>
