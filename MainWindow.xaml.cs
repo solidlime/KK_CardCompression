@@ -40,6 +40,7 @@ namespace KK_Archive
         private string _outputDirectory = string.Empty;
         private bool _isSyncingScroll;
         private bool _isPreviewEnabled = true;
+        private bool _isInitialized;   // LoadSettings 完了前の SaveSettings を抑制
 
         public MainWindow()
         {
@@ -79,6 +80,8 @@ namespace KK_Archive
             ChkRecompressPng.IsChecked = settings.RecompressPng;
             _isPreviewEnabled = settings.PreviewEnabled;
             TglPreviewEnabled.IsChecked = _isPreviewEnabled;
+
+            _isInitialized = true; // これ以降の SaveSettings 呼び出しを有効化
         }
 
         private void SelectCompressionLevel(CompressionLevel level)
@@ -97,7 +100,7 @@ namespace KK_Archive
 
         private void SaveSettings()
         {
-            if (CmbCompLevel == null) return; // Guard: called before InitializeComponent completes
+            if (!_isInitialized) return; // 初期化完了前は保存しない
             IniSettingsService.Save(new AppSettings
             {
                 LastOutputDirectory = _outputDirectory,
