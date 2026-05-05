@@ -56,7 +56,7 @@ namespace KK_Archive
 
         private void InitCompressionLevelCombo()
         {
-            CmbCompLevel.Items.Add(new CompressionOption("Fast（最速・互換設定）",   CompressionLevel.Fast));
+            CmbCompLevel.Items.Add(new CompressionOption("Fast（最速）",   CompressionLevel.Fast));
             CmbCompLevel.Items.Add(new CompressionOption("Normal（バランス）",        CompressionLevel.Normal));
             CmbCompLevel.Items.Add(new CompressionOption("Maximum（高圧縮）",         CompressionLevel.Maximum));
             CmbCompLevel.Items.Add(new CompressionOption("Ultra（最高圧縮）",         CompressionLevel.Ultra));
