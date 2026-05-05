@@ -1,10 +1,5 @@
 # KK Archive
-
 Koikatsu のカード/シーン PNG を圧縮・解凍するデスクトップツールです。
-
-## スクリーンショット
-
-![KKA メイン画面](docs/images/ui-main.png)
 
 ## 互換性
 
