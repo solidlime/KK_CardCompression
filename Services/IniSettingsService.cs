@@ -7,6 +7,8 @@ namespace KK_Archive.Services
     public sealed class AppSettings
     {
         public string LastOutputDirectory { get; set; } = string.Empty;
+        public CompressionLevel CompressionLevel { get; set; } = CompressionLevel.Maximum;
+        public bool RecompressPng { get; set; } = false;
     }
 
     public static class IniSettingsService
@@ -38,6 +40,14 @@ namespace KK_Archive.Services
 
                 if (map.TryGetValue("LastOutputDirectory", out var output))
                     settings.LastOutputDirectory = output;
+
+                if (map.TryGetValue("CompressionLevel", out var lvl)
+                    && Enum.TryParse<CompressionLevel>(lvl, out var cl))
+                    settings.CompressionLevel = cl;
+
+                if (map.TryGetValue("RecompressPng", out var rpng)
+                    && bool.TryParse(rpng, out var rp))
+                    settings.RecompressPng = rp;
             }
             catch
             {
@@ -53,6 +63,8 @@ namespace KK_Archive.Services
             {
                 "[Settings]",
                 $"LastOutputDirectory={settings.LastOutputDirectory}",
+                $"CompressionLevel={settings.CompressionLevel}",
+                $"RecompressPng={settings.RecompressPng}",
                 string.Empty,
             });
 

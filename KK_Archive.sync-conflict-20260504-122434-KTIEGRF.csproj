@@ -7,24 +7,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
-    <ApplicationIcon>Assets\app-icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="LZMA-SDK" Version="19.0.0" />
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
   </ItemGroup>
 
   <ItemGroup>
     <Resource Include="Assets\app-icon.png"/>
-    <None Include="Assets\app-icon.ico"/>
-  </ItemGroup>
-
-  <!-- Syncthing / Synology conflict copies — exclude from compilation -->
-  <ItemGroup>
-    <Compile Remove="**\*.sync-conflict-*" />
-    <Page    Remove="**\*.sync-conflict-*" />
-    <None    Include="**\*.sync-conflict-*" />
   </ItemGroup>
 
 </Project>

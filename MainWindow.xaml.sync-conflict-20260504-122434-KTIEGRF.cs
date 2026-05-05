@@ -103,41 +103,104 @@ namespace KK_Archive
         private void Window_Drop(object sender, DragEventArgs e)
         {
             if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
+            if (_isDragging) return;
 
             var paths = (string[])e.Data.GetData(DataFormats.FileDrop);
+            int added = 0;
+            int skipped = 0;
+
             foreach (var path in paths)
             {
                 if (Directory.Exists(path))
                 {
-                    AddFilesFromDirectory(path);
+                    var (dirAdded, dirSkipped) = AddFilesFromDirectory(path);
+                    added += dirAdded;
+                    skipped += dirSkipped;
                 }
                 else if (File.Exists(path) && path.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
                 {
-                    AddFile(path);
+                    if (ShouldAcceptInputDropPath(path) && AddFile(path))
+                        added++;
+                    else
+                        skipped++;
                 }
             }
 
             UpdateInputCount();
-            TxtStatus.Text = $"入力追加: {_inputFiles.Count} 件";
+            if (added > 0 && skipped > 0)
+            {
+                TxtStatus.Text = $"入力追加: {added} 件 / 除外: {skipped} 件";
+            }
+            else if (added > 0)
+            {
+                TxtStatus.Text = $"入力追加: {added} 件";
+            }
+            else if (skipped > 0)
+            {
+                TxtStatus.Text = $"入力追加対象なし（除外: {skipped} 件）";
+            }
+            else
+            {
+                TxtStatus.Text = "入力追加対象なし";
+            }
         }
 
-        private void AddFile(string path)
+        private bool AddFile(string path)
         {
-            if (_inputFiles.Any(f => f.FullPath.Equals(path, StringComparison.OrdinalIgnoreCase))) return;
+            if (_inputFiles.Any(f => f.FullPath.Equals(path, StringComparison.OrdinalIgnoreCase))) return false;
             _inputFiles.Add(new FileEntry(path));
+            return true;
         }
 
-        private void AddFilesFromDirectory(string dirPath)
+        private (int Added, int Skipped) AddFilesFromDirectory(string dirPath)
         {
+            int added = 0;
+            int skipped = 0;
+
             try
             {
                 foreach (var file in Directory.GetFiles(dirPath, "*.png", SearchOption.AllDirectories))
-                    AddFile(file);
+                {
+                    if (ShouldAcceptInputDropPath(file) && AddFile(file))
+                        added++;
+                    else
+                        skipped++;
+                }
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"フォルダの読み込みに失敗しました: {ex.Message}");
             }
+
+            return (added, skipped);
+        }
+
+        private bool ShouldAcceptInputDropPath(string path)
+        {
+            if (!path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) return false;
+
+            var normalizedPath = Path.GetFullPath(path);
+
+            if (_outputFiles.Any(f =>
+                    Path.GetFullPath(f.FullPath).Equals(normalizedPath, StringComparison.OrdinalIgnoreCase)))
+                return false;
+
+            if (!string.IsNullOrWhiteSpace(_outputDirectory) && IsPathUnderDirectory(normalizedPath, _outputDirectory))
+                return false;
+
+            return true;
+        }
+
+        private static bool IsPathUnderDirectory(string filePath, string directoryPath)
+        {
+            var normalizedFile = Path.GetFullPath(filePath)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var normalizedDir = Path.GetFullPath(directoryPath)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            var dirPrefix = normalizedDir + Path.DirectorySeparatorChar;
+            return normalizedFile.Equals(normalizedDir, StringComparison.OrdinalIgnoreCase)
+                || normalizedFile.StartsWith(dirPrefix, StringComparison.OrdinalIgnoreCase);
         }
 
         private void UpdateInputCount()
@@ -317,12 +380,14 @@ namespace KK_Archive
                 {
                     successCount++;
                     outEntry.ProgressPercent = 100;
+                    outEntry.IsProcessingComplete = true;
                     outEntry.RefreshComputed();
                 }
                 else
                 {
                     failCount++;
                     outEntry.ProgressPercent = 0;
+                    outEntry.IsProcessingComplete = false;
                 }
 
                 ProgressBar.Value = (i + 1) * 100.0 / total;

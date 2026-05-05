@@ -3,18 +3,22 @@ using System.IO;
 using System.Text;
 using SevenZip;
 using SevenZip.Compression.LZMA;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Png;
 
 namespace KK_Archive.Services
 {
     /// <summary>
     /// LZMA 圧縮レベル。numFastBytes のみ変わる。
     /// Dictionary サイズは常に 64 MiB なので KK_SaveLoadCompression との互換性は完全維持。
+    /// numFastBytes は LZMA ストリームに記録されないため、デコーダー互換性に影響しない。
     /// </summary>
     public enum CompressionLevel
     {
         Fast    = 5,    // 最速（オリジナルプラグインと同じ）
         Normal  = 32,   // バランス
-        Maximum = 128,  // 最高圧縮
+        Maximum = 128,  // 高圧縮
+        Ultra   = 273,  // 最高圧縮（LZMA SDK の最大値）
     }
 
     internal static class KkToken
@@ -68,7 +72,8 @@ namespace KK_Archive.Services
         /// 出力形式: [PNGデータ] [圧縮マーカー(101)] [トークン] [LZMAストリーム]
         /// </summary>
         public static void CompressFile(string inputPath, string outputPath,
-                                        CompressionLevel level = CompressionLevel.Fast,
+                                        CompressionLevel level = CompressionLevel.Maximum,
+                                        bool recompressPng = false,
                                         IProgress<double>? progress = null)
         {
             using var inFs  = new FileStream(inputPath,  FileMode.Open,   FileAccess.Read,  FileShare.ReadWrite);
@@ -80,6 +85,10 @@ namespace KK_Archive.Services
 
             byte[] pngData   = LoadPngBytes(br);
             long   extraStart = inFs.Position;
+
+            // PNG 再圧縮（オプション）
+            if (recompressPng)
+                pngData = RecompressPng(pngData);
 
             // トークン種別を判定（カーソルはextraStartに戻る）
             string? token = GuessToken(br);
@@ -156,6 +165,33 @@ namespace KK_Archive.Services
         // ---------------------------------------------------------------
         // PNG helpers
         // ---------------------------------------------------------------
+
+        /// <summary>
+        /// PNG データを BestCompression で再エンコードする。
+        /// 再圧縮後のサイズが元より大きい場合は元のデータをそのまま返す。
+        /// </summary>
+        private static byte[] RecompressPng(byte[] originalPngData)
+        {
+            try
+            {
+                using var input  = new MemoryStream(originalPngData);
+                using var output = new MemoryStream();
+
+                using var image = SixLabors.ImageSharp.Image.Load(input);
+                image.SaveAsPng(output, new PngEncoder
+                {
+                    CompressionLevel = PngCompressionLevel.BestCompression,
+                    FilterMethod     = PngFilterMethod.Adaptive,
+                });
+
+                byte[] recompressed = output.ToArray();
+                return recompressed.Length < originalPngData.Length ? recompressed : originalPngData;
+            }
+            catch
+            {
+                return originalPngData;
+            }
+        }
 
         private static byte[] LoadPngBytes(BinaryReader br)
         {

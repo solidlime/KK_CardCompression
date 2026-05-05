@@ -92,7 +92,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="ListViewItem">
                         <Border x:Name="RowBd" Background="Transparent" CornerRadius="6" Margin="2,1" MinHeight="38">
-                            <GridViewRowPresenter/>
+                            <GridViewRowPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -201,15 +201,17 @@
                             <GridView>
                                 <GridViewColumn Header="ファイル名" Width="165" DisplayMemberBinding="{Binding FileName}"/>
                                 <GridViewColumn Header="フォルダ" Width="150" DisplayMemberBinding="{Binding FolderPath}"/>
-                                <GridViewColumn Header="サイズ / 進捗" Width="105">
+                                <GridViewColumn Header="サイズ / 進捗" Width="130">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
-                                            <Grid Width="{Binding RelativeSource={RelativeSource AncestorType=ContentPresenter}, Path=ActualWidth}">
+                                            <Grid HorizontalAlignment="Stretch">
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="Auto"/>
                                                     <RowDefinition Height="Auto"/>
                                                 </Grid.RowDefinitions>
-                                                <TextBlock Grid.Row="0" Text="{Binding SizeFormatted}" Foreground="{StaticResource TextMain}"/>
+                                                <TextBlock Grid.Row="0" Text="{Binding SizeFormatted}"
+                                                           Foreground="{StaticResource TextMain}"
+                                                           TextTrimming="CharacterEllipsis"/>
                                                 <ProgressBar Grid.Row="1"
                                                              MinWidth="0"
                                                              HorizontalAlignment="Stretch"
@@ -230,13 +232,18 @@
 
         <Border Grid.Row="2" Margin="0,10,0,0" Background="{StaticResource BgPanel}" BorderBrush="{StaticResource BorderSoft}" BorderThickness="1" CornerRadius="12" Padding="10">
             <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal">
                     <Button x:Name="BtnAuto" Content="自動判定" Width="100" Margin="0,0,8,0" Style="{StaticResource PrimaryButton}" Click="BtnAuto_Click"/>
                     <Button x:Name="BtnCompress" Content="圧縮" Width="80" Margin="0,0,8,0" Style="{StaticResource ActionButton}" Click="BtnCompress_Click"/>
                     <Button x:Name="BtnDecompress" Content="解凍" Width="80" Margin="0,0,8,0" Style="{StaticResource ActionButton}" Click="BtnDecompress_Click"/>
@@ -244,9 +251,28 @@
                     <Button x:Name="BtnClear" Content="クリア" Width="80" Margin="0,0,0,0" Style="{StaticResource ActionButton}" Click="BtnClear_Click"/>
                 </StackPanel>
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal">
                     <Button x:Name="BtnSelectOutput" Content="出力先設定" Width="110" Margin="0,0,10,0" Style="{StaticResource ActionButton}" Click="BtnSelectOutput_Click"/>
                     <TextBlock x:Name="TxtOutputPath" Text="出力先: 未選択" VerticalAlignment="Center" MaxWidth="320" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextMuted}"/>
+                </StackPanel>
+
+                <Border Grid.Row="1" Grid.ColumnSpan="3" Height="1" Margin="0,8,0,0"
+                        Background="{StaticResource BorderSoft}"/>
+
+                <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3"
+                            Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
+                    <TextBlock Text="圧縮レベル:" VerticalAlignment="Center" FontSize="11"
+                               Foreground="{StaticResource TextMuted}" Margin="0,0,6,0"/>
+                    <ComboBox x:Name="CmbCompLevel" Width="160" Height="28" FontSize="12"
+                              VerticalContentAlignment="Center" Padding="6,0"
+                              BorderBrush="{StaticResource BorderSoft}"
+                              SelectionChanged="CmbCompLevel_SelectionChanged"/>
+                    <CheckBox x:Name="ChkRecompressPng" Content="PNG 再圧縮"
+                              VerticalAlignment="Center" FontSize="12"
+                              Foreground="{StaticResource TextSub}"
+                              Margin="20,0,0,0"
+                              Checked="ChkRecompressPng_Changed"
+                              Unchecked="ChkRecompressPng_Changed"/>
                 </StackPanel>
             </Grid>
         </Border>

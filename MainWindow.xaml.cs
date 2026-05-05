@@ -44,9 +44,21 @@ namespace KK_Archive
             LvInput.ItemsSource = _inputFiles;
             LvOutput.ItemsSource = _outputFiles;
 
+            InitCompressionLevelCombo();
             UpdateInputCount();
             UpdateOutputCount();
             LoadSettings();
+        }
+
+        private void InitCompressionLevelCombo()
+        {
+            CmbCompLevel.Items.Add(new CompressionOption("Fast（最速・互換設定）",   CompressionLevel.Fast));
+            CmbCompLevel.Items.Add(new CompressionOption("Normal（バランス）",        CompressionLevel.Normal));
+            CmbCompLevel.Items.Add(new CompressionOption("Maximum（高圧縮）",         CompressionLevel.Maximum));
+            CmbCompLevel.Items.Add(new CompressionOption("Ultra（最高圧縮）",         CompressionLevel.Ultra));
+            CmbCompLevel.DisplayMemberPath  = "Label";
+            CmbCompLevel.SelectedValuePath  = "Level";
+            CmbCompLevel.SelectedValue      = CompressionLevel.Maximum;
         }
 
         private void LoadSettings()
@@ -58,6 +70,9 @@ namespace KK_Archive
                 _outputDirectory = settings.LastOutputDirectory;
                 TxtOutputPath.Text = $"出力先: {_outputDirectory}";
             }
+
+            CmbCompLevel.SelectedValue = settings.CompressionLevel;
+            ChkRecompressPng.IsChecked = settings.RecompressPng;
         }
 
         private void SaveSettings()
@@ -65,8 +80,19 @@ namespace KK_Archive
             IniSettingsService.Save(new AppSettings
             {
                 LastOutputDirectory = _outputDirectory,
+                CompressionLevel    = GetSelectedCompressionLevel(),
+                RecompressPng       = ChkRecompressPng.IsChecked == true,
             });
         }
+
+        private CompressionLevel GetSelectedCompressionLevel()
+            => CmbCompLevel.SelectedValue is CompressionLevel l ? l : CompressionLevel.Maximum;
+
+        private void CmbCompLevel_SelectionChanged(object sender, SelectionChangedEventArgs e)
+            => SaveSettings();
+
+        private void ChkRecompressPng_Changed(object sender, RoutedEventArgs e)
+            => SaveSettings();
 
         private void Window_DragEnter(object sender, DragEventArgs e)
         {
@@ -341,6 +367,10 @@ namespace KK_Archive
 
             var files = _inputFiles.ToList();
 
+            // 処理開始前に UI スレッドで設定値を取得
+            var compressionLevel = GetSelectedCompressionLevel();
+            bool recompressPng   = ChkRecompressPng.IsChecked == true;
+
             int successCount = 0;
             int failCount = 0;
             int total = files.Count;
@@ -367,7 +397,9 @@ namespace KK_Archive
                 ProcessResult result;
                 try
                 {
-                    result = await Task.Run(() => ProcessSingleFile(source.FullPath, doCompress, progress), token);
+                    result = await Task.Run(
+                        () => ProcessSingleFile(source.FullPath, doCompress, compressionLevel, recompressPng, progress),
+                        token);
                 }
                 catch (OperationCanceledException)
                 {
@@ -404,7 +436,9 @@ namespace KK_Archive
 
         private record ProcessResult(bool Success, string? OutputPath, string? ErrorMessage = null);
 
-        private ProcessResult ProcessSingleFile(string inputPath, bool compress, IProgress<double> progress)
+        private ProcessResult ProcessSingleFile(string inputPath, bool compress,
+                                                 CompressionLevel compressionLevel, bool recompressPng,
+                                                 IProgress<double> progress)
         {
             string backupPath = inputPath + ".bak";
             try
@@ -420,7 +454,7 @@ namespace KK_Archive
                     Directory.CreateDirectory(outputDir);
 
                 if (compress)
-                    CompressionService.CompressFile(inputPath, outputPath, CompressionLevel.Fast, progress);
+                    CompressionService.CompressFile(inputPath, outputPath, compressionLevel, recompressPng, progress);
                 else
                     CompressionService.DecompressFile(inputPath, outputPath, progress);
 
@@ -511,5 +545,7 @@ namespace KK_Archive
 
             return $"{value:F1} {sizes[order]}";
         }
+
+        private sealed record CompressionOption(string Label, CompressionLevel Level);
     }
 }
