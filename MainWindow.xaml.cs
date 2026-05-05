@@ -83,6 +83,7 @@ namespace KK_Archive
 
         private void SaveSettings()
         {
+            if (CmbCompLevel == null) return; // Guard: called before InitializeComponent completes
             IniSettingsService.Save(new AppSettings
             {
                 LastOutputDirectory = _outputDirectory,
@@ -93,7 +94,7 @@ namespace KK_Archive
         }
 
         private CompressionLevel GetSelectedCompressionLevel()
-            => CmbCompLevel.SelectedValue is CompressionLevel l ? l : CompressionLevel.Maximum;
+            => CmbCompLevel?.SelectedValue is CompressionLevel l ? l : CompressionLevel.Maximum;
 
         private void CmbCompLevel_SelectionChanged(object sender, SelectionChangedEventArgs e)
             => SaveSettings();
