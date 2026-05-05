@@ -1,6 +1,16 @@
 # KK Archive
 Koikatsu のカード/シーン PNG を圧縮・解凍するデスクトップツールです。
 
+## ⚠️ 重要: 使用に必須なプラグイン
+
+圧縮したカードを Koikatsu で使用するには、**KK_SaveLoadCompression.dll** が必須です。
+
+- 圧縮ファイルの読み込み: KK_SaveLoadCompression.dll が必要
+- 圧縮ファイルの作成: このアプリで圧縮
+- インストール: Koikatsu の `BepInEx/plugins` フォルダに `KK_SaveLoadCompression.dll` を配置
+
+詳細は https://github.com/jim60105/KK/releases を参照。
+
 ## 互換性
 
 圧縮レベルは以下の 4 種類を選べますが、すべて互換性を維持します。
