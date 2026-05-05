@@ -75,10 +75,24 @@ namespace KK_Archive
                 TxtOutputPath.Text = $"出力先: {_outputDirectory}";
             }
 
-            CmbCompLevel.SelectedValue = settings.CompressionLevel;
+            SelectCompressionLevel(settings.CompressionLevel);
             ChkRecompressPng.IsChecked = settings.RecompressPng;
             _isPreviewEnabled = settings.PreviewEnabled;
             TglPreviewEnabled.IsChecked = _isPreviewEnabled;
+        }
+
+        private void SelectCompressionLevel(CompressionLevel level)
+        {
+            foreach (var item in CmbCompLevel.Items)
+            {
+                if (item is CompressionOption option && option.Level == level)
+                {
+                    CmbCompLevel.SelectedItem = option;
+                    return;
+                }
+            }
+            // Fallback to Maximum if not found
+            CmbCompLevel.SelectedValue = CompressionLevel.Maximum;
         }
 
         private void SaveSettings()

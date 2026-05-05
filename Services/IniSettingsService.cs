@@ -43,7 +43,7 @@ namespace KK_Archive.Services
                     settings.LastOutputDirectory = output;
 
                 if (map.TryGetValue("CompressionLevel", out var lvl)
-                    && Enum.TryParse<CompressionLevel>(lvl, out var cl))
+                    && Enum.TryParse<CompressionLevel>(lvl, ignoreCase: true, out var cl))
                     settings.CompressionLevel = cl;
 
                 if (map.TryGetValue("RecompressPng", out var rpng)
