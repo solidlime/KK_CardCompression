@@ -9,6 +9,7 @@ namespace KK_Archive.Services
         public string LastOutputDirectory { get; set; } = string.Empty;
         public CompressionLevel CompressionLevel { get; set; } = CompressionLevel.Maximum;
         public bool RecompressPng { get; set; } = false;
+        public bool PreviewEnabled { get; set; } = true;
     }
 
     public static class IniSettingsService
@@ -48,6 +49,10 @@ namespace KK_Archive.Services
                 if (map.TryGetValue("RecompressPng", out var rpng)
                     && bool.TryParse(rpng, out var rp))
                     settings.RecompressPng = rp;
+
+                if (map.TryGetValue("PreviewEnabled", out var prev)
+                    && bool.TryParse(prev, out var pe))
+                    settings.PreviewEnabled = pe;
             }
             catch
             {
@@ -65,6 +70,7 @@ namespace KK_Archive.Services
                 $"LastOutputDirectory={settings.LastOutputDirectory}",
                 $"CompressionLevel={settings.CompressionLevel}",
                 $"RecompressPng={settings.RecompressPng}",
+                $"PreviewEnabled={settings.PreviewEnabled}",
                 string.Empty,
             });
 

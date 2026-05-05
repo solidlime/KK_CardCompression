@@ -8,8 +8,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using KK_Archive.Models;
 using KK_Archive.Services;
 using DataFormats = System.Windows.DataFormats;
@@ -36,6 +38,8 @@ namespace KK_Archive
         private CancellationTokenSource? _cts;
 
         private string _outputDirectory = string.Empty;
+        private bool _isSyncingScroll;
+        private bool _isPreviewEnabled = true;
 
         public MainWindow()
         {
@@ -73,6 +77,8 @@ namespace KK_Archive
 
             CmbCompLevel.SelectedValue = settings.CompressionLevel;
             ChkRecompressPng.IsChecked = settings.RecompressPng;
+            _isPreviewEnabled = settings.PreviewEnabled;
+            TglPreviewEnabled.IsChecked = _isPreviewEnabled;
         }
 
         private void SaveSettings()
@@ -82,6 +88,7 @@ namespace KK_Archive
                 LastOutputDirectory = _outputDirectory,
                 CompressionLevel    = GetSelectedCompressionLevel(),
                 RecompressPng       = ChkRecompressPng.IsChecked == true,
+                PreviewEnabled      = _isPreviewEnabled,
             });
         }
 
@@ -93,6 +100,114 @@ namespace KK_Archive
 
         private void ChkRecompressPng_Changed(object sender, RoutedEventArgs e)
             => SaveSettings();
+
+        private void TglPreviewEnabled_Changed(object sender, RoutedEventArgs e)
+        {
+            _isPreviewEnabled = TglPreviewEnabled.IsChecked == true;
+            if (!_isPreviewEnabled)
+                PreviewPopup.IsOpen = false;
+            SaveSettings();
+        }
+
+        // ── 同期スクロール ──────────────────────────────────────────
+        private ScrollViewer? _inputScrollViewer;
+        private ScrollViewer? _outputScrollViewer;
+
+        private void LvInput_Loaded(object sender, RoutedEventArgs e)
+        {
+            _inputScrollViewer = GetScrollViewer(LvInput);
+            if (_inputScrollViewer != null)
+                _inputScrollViewer.ScrollChanged += OnInputScrollChanged;
+        }
+
+        private void LvOutput_Loaded(object sender, RoutedEventArgs e)
+        {
+            _outputScrollViewer = GetScrollViewer(LvOutput);
+            if (_outputScrollViewer != null)
+                _outputScrollViewer.ScrollChanged += OnOutputScrollChanged;
+        }
+
+        private void OnInputScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (_isSyncingScroll || e.VerticalChange == 0) return;
+            _isSyncingScroll = true;
+            _outputScrollViewer?.ScrollToVerticalOffset(e.VerticalOffset);
+            _isSyncingScroll = false;
+        }
+
+        private void OnOutputScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (_isSyncingScroll || e.VerticalChange == 0) return;
+            _isSyncingScroll = true;
+            _inputScrollViewer?.ScrollToVerticalOffset(e.VerticalOffset);
+            _isSyncingScroll = false;
+        }
+
+        private static ScrollViewer? GetScrollViewer(DependencyObject obj)
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(obj); i++)
+            {
+                var child = VisualTreeHelper.GetChild(obj, i);
+                if (child is ScrollViewer sv) return sv;
+                var result = GetScrollViewer(child);
+                if (result != null) return result;
+            }
+            return null;
+        }
+
+        // ── マウスオーバープレビュー ────────────────────────────────
+        private void LvInput_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (!_isPreviewEnabled) return;
+
+            var element = e.OriginalSource as DependencyObject;
+            while (element != null && element is not System.Windows.Controls.ListViewItem)
+                element = VisualTreeHelper.GetParent(element);
+
+            if (element is System.Windows.Controls.ListViewItem item && item.DataContext is FileEntry entry)
+            {
+                UpdatePreview(entry);
+                PreviewPopup.IsOpen = true;
+            }
+            else
+            {
+                PreviewPopup.IsOpen = false;
+            }
+        }
+
+        private void LvInput_MouseLeave(object sender, MouseEventArgs e)
+            => PreviewPopup.IsOpen = false;
+
+        private void UpdatePreview(FileEntry? entry)
+        {
+            if (entry == null)
+            {
+                ImgPreview.Source = null;
+                TxtPreviewName.Text = string.Empty;
+                TxtPreviewSize.Text = string.Empty;
+                return;
+            }
+
+            TxtPreviewName.Text = entry.FileName;
+            TxtPreviewSize.Text = entry.SizeFormatted;
+
+            try
+            {
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.UriSource = new Uri(entry.FullPath, UriKind.Absolute);
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.DecodePixelWidth = 200;
+                bmp.EndInit();
+                bmp.Freeze();
+                ImgPreview.Source = bmp;
+            }
+            catch
+            {
+                ImgPreview.Source = null;
+            }
+        }
+
 
         private void Window_DragEnter(object sender, DragEventArgs e)
         {
@@ -320,6 +435,7 @@ namespace KK_Archive
 
         private void BtnClear_Click(object sender, RoutedEventArgs e)
         {
+            PreviewPopup.IsOpen = false;
             _inputFiles.Clear();
             _outputFiles.Clear();
             UpdateInputCount();

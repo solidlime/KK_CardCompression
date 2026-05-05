@@ -88,6 +88,7 @@
 
         <Style TargetType="ListViewItem">
             <Setter Property="Padding" Value="4,4"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListViewItem">
@@ -116,6 +117,35 @@
             <Setter Property="BorderThickness" Value="0"/>
         </Style>
 
+        <Style x:Key="ToggleSwitch" TargetType="ToggleButton">
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="22"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid>
+                            <Border x:Name="Track" CornerRadius="11" Background="#C8D4E8"/>
+                            <Border x:Name="Thumb" Width="16" Height="16" CornerRadius="8"
+                                    Background="White" HorizontalAlignment="Left"
+                                    Margin="3,0,0,0" VerticalAlignment="Center">
+                                <Border.Effect>
+                                    <DropShadowEffect ShadowDepth="1" BlurRadius="3" Opacity="0.25" Direction="270"/>
+                                </Border.Effect>
+                            </Border>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="{StaticResource Accent}"/>
+                                <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
+                                <Setter TargetName="Thumb" Property="Margin" Value="0,0,3,0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
 
     </Window.Resources>
 
@@ -132,6 +162,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <Border Width="34" Height="34" CornerRadius="9" Background="Transparent" Margin="0,0,10,0" ClipToBounds="True">
@@ -143,6 +174,14 @@
                     </StackPanel>
                 </StackPanel>
                 <TextBlock Grid.Column="1" x:Name="TxtDropHint" Text="ファイルまたはフォルダをドロップ" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource TextMuted}"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="プレビュー" VerticalAlignment="Center" FontSize="11"
+                               Foreground="{StaticResource TextMuted}" Margin="0,0,6,0"/>
+                    <ToggleButton x:Name="TglPreviewEnabled" Style="{StaticResource ToggleSwitch}"
+                                  IsChecked="True" ToolTip="マウスオーバープレビュー ON/OFF"
+                                  Checked="TglPreviewEnabled_Changed"
+                                  Unchecked="TglPreviewEnabled_Changed"/>
+                </StackPanel>
             </Grid>
         </Border>
 
@@ -168,6 +207,9 @@
                               PreviewMouseLeftButtonDown="Lv_PreviewMouseLeftButtonDown"
                               PreviewMouseMove="Lv_PreviewMouseMove"
                               PreviewKeyDown="LvInput_PreviewKeyDown"
+                              MouseMove="LvInput_MouseMove"
+                              MouseLeave="LvInput_MouseLeave"
+                              Loaded="LvInput_Loaded"
                               SelectionMode="Extended">
                         <ListView.View>
                             <GridView>
@@ -196,6 +238,7 @@
                               MouseDoubleClick="LvOutput_DoubleClick"
                               PreviewMouseLeftButtonDown="Lv_PreviewMouseLeftButtonDown"
                               PreviewMouseMove="Lv_PreviewMouseMove"
+                              Loaded="LvOutput_Loaded"
                               SelectionMode="Extended">
                         <ListView.View>
                             <GridView>
@@ -292,5 +335,27 @@
                 <TextBlock Grid.Column="1" x:Name="TxtStats" VerticalAlignment="Center" Foreground="{StaticResource TextMuted}" Margin="16,0,0,0"/>
             </Grid>
         </Border>
+
+        <Popup x:Name="PreviewPopup" Placement="Mouse" StaysOpen="True"
+               AllowsTransparency="True" PopupAnimation="Fade">
+            <Border Background="{StaticResource BgPanel}"
+                    BorderBrush="{StaticResource BorderSoft}"
+                    BorderThickness="1" CornerRadius="10" Padding="10">
+                <Border.Effect>
+                    <DropShadowEffect ShadowDepth="4" BlurRadius="12" Opacity="0.15" Direction="270"/>
+                </Border.Effect>
+                <StackPanel>
+                    <Border Width="200" Height="200" Background="{StaticResource BgWindow}"
+                            CornerRadius="6" ClipToBounds="True">
+                        <Image x:Name="ImgPreview" Stretch="Uniform"/>
+                    </Border>
+                    <TextBlock x:Name="TxtPreviewName" MaxWidth="200" FontSize="11" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextMain}" TextTrimming="CharacterEllipsis"
+                               Margin="0,6,0,2"/>
+                    <TextBlock x:Name="TxtPreviewSize" FontSize="10"
+                               Foreground="{StaticResource TextMuted}"/>
+                </StackPanel>
+            </Border>
+        </Popup>
     </Grid>
 </Window>
