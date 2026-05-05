@@ -12,8 +12,8 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using KK_Archive.Models;
-using KK_Archive.Services;
+using KK_CardCompression.Models;
+using KK_CardCompression.Services;
 using DataFormats = System.Windows.DataFormats;
 using DataObject = System.Windows.DataObject;
 using DragDropEffects = System.Windows.DragDropEffects;
@@ -24,7 +24,7 @@ using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using ListView = System.Windows.Controls.ListView;
 using Point = System.Windows.Point;
 
-namespace KK_Archive
+namespace KK_CardCompression
 {
     public partial class MainWindow : Window
     {

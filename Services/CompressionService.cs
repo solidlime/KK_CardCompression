@@ -6,7 +6,7 @@ using SevenZip.Compression.LZMA;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
 
-namespace KK_Archive.Services
+namespace KK_CardCompression.Services
 {
     /// <summary>
     /// LZMA 圧縮レベル。numFastBytes のみ変わる。

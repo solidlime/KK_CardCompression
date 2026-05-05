@@ -8,6 +8,8 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>Assets\app-icon.ico</ApplicationIcon>
+    <AssemblyName>KK_CardCompression</AssemblyName>
+    <RootNamespace>KK_CardCompression</RootNamespace>
   </PropertyGroup>
 
   <!-- Framework-dependent release configuration -->

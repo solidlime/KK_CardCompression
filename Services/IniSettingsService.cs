@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace KK_Archive.Services
+namespace KK_CardCompression.Services
 {
     public sealed class AppSettings
     {
@@ -15,7 +15,7 @@ namespace KK_Archive.Services
     public static class IniSettingsService
     {
         private static readonly string s_iniPath =
-            Path.Combine(AppContext.BaseDirectory, "KK_Archive.ini");
+            Path.Combine(AppContext.BaseDirectory, "KK_CardCompression.ini");
 
         public static AppSettings Load()
         {

@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 
-namespace KK_Archive.Models
+namespace KK_CardCompression.Models
 {
     public class FileEntry : INotifyPropertyChanged
     {
