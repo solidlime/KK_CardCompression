@@ -104,7 +104,7 @@ namespace KK_CardCompression.Services
             // PNG を出力
             bw.Write(pngData);
 
-            // 圧縮マーカー + トークン を出力
+            // 圧縮マーカー + トークンを出力（形式はトークン種別で異なる）
             if (token == KkToken.StudioToken)
                 bw.Write(new Version(101, 0, 0, 0).ToString());
             else
@@ -145,6 +145,7 @@ namespace KK_CardCompression.Services
         /// <summary>
         /// 圧縮済み KK カードファイルを元に戻す。
         /// マーカー 101（LZMA）に対応。
+        /// 出力形式: [PNGデータ] [元のマーカー100] [トークン] [ゲームデータ]
         /// </summary>
         public static void DecompressFile(string inputPath, string outputPath,
                                           IProgress<double>? progress = null)
@@ -192,7 +193,7 @@ namespace KK_CardCompression.Services
             bw.Write(pngData);
             bw.Flush();
 
-            // LZMA 展開
+            // LZMA 展開（LZMAデータの中には元のマーカー100+トークン+ゲームデータが含まれる）
             LzmaDecompress(inFs, outFs, progress);
 
             progress?.Report(1.0);
