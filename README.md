@@ -168,19 +168,17 @@ Zstd 圧縮ファイルを Koikatsu 内で読み込むには、BepInEx プラグ
 ### インストール
 
 1. `BepInEx/plugins/KK_CardCompression/` フォルダを作成
-2. 以下のファイルを配置:
-   - `KK_CardCompression.dll`（プラグイン本体）
-   - `kk_universal_dict.zstd`（Zstd 辞書ファイル）
+2. `KK_CardCompression.dll` を配置（ZstdSharp・System.*.dll は ILRepack で単一DLLにマージ済み、Zstd 辞書は埋め込みリソースとして同梱）
 3. ゲームを起動するとプラグインが自動ロードされる
 
 ### ビルド
 
 ```bash
 cd KK_CardCompression.Plugin
-dotnet build -c Release -p:GameLibsPath="C:\Games\Koikatu\Koikatu_Data\Managed"
+dotnet build -c Release
 ```
 
-`GameLibsPath` には Koikatsu の `Koikatu_Data/Managed` ディレクトリを指定する。
+Release ビルドでは ILRepack が自動的に ZstdSharp.dll と System.*.dll を単一の `KK_CardCompression.dll` にマージする。
 
 ### 互換性
 
