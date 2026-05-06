@@ -580,71 +580,96 @@ namespace KK_CardCompression
             var token = _cts.Token;
 
             var files = _inputFiles.ToList();
+            int total = files.Count;
 
             // 処理開始前に UI スレッドで設定値を取得
             var algorithm        = GetSelectedAlgorithm();
             var compressionLevel = GetSelectedCompressionLevel();
             bool recompressPng   = ChkRecompressPng.IsChecked == true;
 
-            int successCount = 0;
-            int failCount = 0;
-            int total = files.Count;
-
+            // 出力エントリと圧縮判定を先に全て作成（UIスレッド）
+            var entries = new OutputFileEntry[total];
+            var doCompressFlags = new bool[total];
             for (int i = 0; i < total; i++)
             {
-                if (token.IsCancellationRequested) break;
-
                 var source = files[i];
-                bool doCompress = compress ?? !CompressionService.IsCompressed(source.FullPath);
-
+                doCompressFlags[i] = compress ?? !CompressionService.IsCompressed(source.FullPath);
                 string relativePath = GetRelativePath(source.FullPath, files.Select(f => f.FullPath).ToList());
                 string outputPath = Path.Combine(_outputDirectory, relativePath);
+                entries[i] = new OutputFileEntry(outputPath, source.SizeBytes) { ProgressPercent = 0 };
+                _outputFiles.Add(entries[i]);
+            }
+            UpdateOutputCount();
 
-                var outEntry = new OutputFileEntry(outputPath, source.SizeBytes) { ProgressPercent = 0 };
-                _outputFiles.Add(outEntry);
-                UpdateOutputCount();
+            // 並列処理（コア数分のファイルを同時処理）
+            int maxConcurrency = Math.Max(1, Environment.ProcessorCount);
+            using var semaphore = new SemaphoreSlim(maxConcurrency, maxConcurrency);
+            var counters = new int[3]; // [0]=success, [1]=fail, [2]=completed
 
-                var progress = new Progress<double>(p =>
-                {
-                    outEntry.ProgressPercent = (int)Math.Round(p * 100.0);
-                });
-
-                ProcessResult result;
+            var tasks = files.Select(async (source, i) =>
+            {
+                await semaphore.WaitAsync(token);
                 try
                 {
-                    result = await Task.Run(
-                        () => ProcessSingleFile(source.FullPath, doCompress, algorithm, compressionLevel, recompressPng, progress),
-                        token);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
+                    var progress = new Progress<double>(p =>
+                    {
+                        entries[i].ProgressPercent = (int)Math.Round(p * 100.0);
+                    });
 
-                if (result.Success)
-                {
-                    successCount++;
-                    outEntry.ProgressPercent = 100;
-                    outEntry.IsProcessingComplete = true;
-                    outEntry.RefreshComputed();
-                }
-                else
-                {
-                    failCount++;
-                    outEntry.ProgressPercent = 0;
-                    outEntry.IsProcessingComplete = false;
-                }
+                    ProcessResult result;
+                    try
+                    {
+                        result = await Task.Run(
+                            () => ProcessSingleFile(source.FullPath, doCompressFlags[i], algorithm, compressionLevel, recompressPng, progress),
+                            token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return;
+                    }
 
-                ProgressBar.Value = (i + 1) * 100.0 / total;
-                TxtStatus.Text = $"処理中... ({i + 1}/{total})";
+                    if (result.Success)
+                    {
+                        Interlocked.Increment(ref counters[0]);
+                        entries[i].ProgressPercent = 100;
+                        entries[i].IsProcessingComplete = true;
+                        await Dispatcher.InvokeAsync(() => entries[i].RefreshComputed());
+                    }
+                    else
+                    {
+                        Interlocked.Increment(ref counters[1]);
+                        entries[i].ProgressPercent = 0;
+                    }
+
+                    int done = Interlocked.Increment(ref counters[2]);
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        ProgressBar.Value = done * 100.0 / total;
+                        TxtStatus.Text = $"処理中... ({done}/{total})";
+                    });
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            }).ToArray();
+
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                // キャンセル済み
             }
 
             _stopwatch.Stop();
-            bool cancelled = token.IsCancellationRequested;
             SetProcessingState(false);
 
+            int successCount = counters[0];
+            int failCount = counters[1];
             UpdateStats(files, successCount, failCount);
-            TxtStatus.Text = cancelled
+            TxtStatus.Text = token.IsCancellationRequested
                 ? $"中止しました ({successCount}/{total} 完了)"
                 : $"処理完了 ({successCount}/{total} 成功)";
         }
@@ -690,9 +715,6 @@ namespace KK_CardCompression
                     File.Copy(backupPath, inputPath, true);
                     File.Delete(backupPath);
                 }
-
-                Dispatcher.Invoke(() =>
-                    MessageBox.Show($"処理失敗: {Path.GetFileName(inputPath)}\n{ex.Message}"));
 
                 return new ProcessResult(false, null, ex.Message);
             }

@@ -109,7 +109,14 @@ namespace KK_CardCompression.Services
 
             // PNG 再圧縮（オプション）
             if (recompressPng)
+            {
                 pngData = RecompressPng(pngData);
+                progress?.Report(0.05);
+            }
+            else
+            {
+                progress?.Report(0.05);
+            }
 
             // トークン種別を判定（カーソルはextraStartに戻る）
             string? token = GuessToken(br);
@@ -125,7 +132,6 @@ namespace KK_CardCompression.Services
 
             // PNG を出力
             bw.Write(pngData);
-            progress?.Report(0.08);
 
             // 圧縮マーカー + トークン を出力
             if (algorithm == CompressionAlgorithm.Lzma)
@@ -175,16 +181,21 @@ namespace KK_CardCompression.Services
                     dataStartOffset = ms.Position;
                 }
 
-                var processed = ScenePreprocessor.Process(extraData, dataStartOffset);
+                // Report progress from 0.12 to 0.50 during PNG recompression
+                var pngProgress = progress != null
+                    ? new Progress<double>(p => progress.Report(0.12 + p * 0.38))
+                    : null;
+                var processed = ScenePreprocessor.Process(extraData, dataStartOffset, pngProgress);
                 if (processed != null)
                     extraData = processed;
+                progress?.Report(0.50);
             }
 
             // 圧縮
             if (algorithm == CompressionAlgorithm.Lzma)
             {
                 using var msCompressed = new MemoryStream();
-                LzmaCompress(new MemoryStream(extraData), msCompressed, lzmaLevel, progress);
+                LzmaCompress(new MemoryStream(extraData), msCompressed, lzmaLevel, progress, 0.50, 0.95);
                 bw.Write(msCompressed.ToArray());
             }
             else // Zstd
@@ -194,7 +205,9 @@ namespace KK_CardCompression.Services
                     compressed = ZstdCompressionService.CompressWithDictionary(extraData, zstdLevel);
                 else
                     compressed = ZstdCompressionService.Compress(extraData, zstdLevel);
+                extraData = null; // Allow GC to collect before writing
                 bw.Write(compressed);
+                progress?.Report(0.95);
             }
 
             progress?.Report(1.0);
@@ -338,7 +351,7 @@ namespace KK_CardCompression.Services
         // ---------------------------------------------------------------
 
         /// <summary>
-        /// PNG データを BestCompression で再エンコードする。
+        /// PNG データを DefaultCompression + Sub フィルタで高速再エンコードする。
         /// 再圧縮後のサイズが元より大きい場合は元のデータをそのまま返す。
         /// </summary>
         internal static byte[] RecompressPng(byte[] originalPngData)
@@ -351,8 +364,8 @@ namespace KK_CardCompression.Services
                 using var image = SixLabors.ImageSharp.Image.Load(input);
                 image.SaveAsPng(output, new PngEncoder
                 {
-                    CompressionLevel = PngCompressionLevel.BestCompression,
-                    FilterMethod     = PngFilterMethod.Adaptive,
+                    CompressionLevel = PngCompressionLevel.DefaultCompression,
+                    FilterMethod     = PngFilterMethod.Sub,
                 });
 
                 byte[] recompressed = output.ToArray();
@@ -454,7 +467,8 @@ namespace KK_CardCompression.Services
 
         private static void LzmaCompress(Stream input, Stream output,
                                          CompressionLevel level = CompressionLevel.Fast,
-                                         IProgress<double>? progress = null)
+                                         IProgress<double>? progress = null,
+                                         double progressStart = 0.12, double progressEnd = 0.96)
         {
             var props = new object[]
             {
@@ -477,7 +491,7 @@ namespace KK_CardCompression.Services
 
             ICodeProgress? codeProgress = null;
             if (progress != null)
-                codeProgress = new LzmaCodeProgress(remaining, progress, 0.12, 0.96);
+                codeProgress = new LzmaCodeProgress(remaining, progress, progressStart, progressEnd);
 
             encoder.Code(input, output, -1, -1, codeProgress);
         }

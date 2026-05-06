@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
 
@@ -22,29 +24,42 @@ namespace KK_CardCompression.Services
         /// </summary>
         /// <param name="sceneData">PNG以降のシーンデータ全体</param>
         /// <param name="dataStartOffset">シーンデータ内のオブジェクト領域開始オフセット（バージョン文字列以降）</param>
-        public static byte[]? Process(byte[] sceneData, long dataStartOffset)
+        public static byte[]? Process(byte[] sceneData, long dataStartOffset, IProgress<double>? progress = null)
         {
             var regions = FindAllPngs(sceneData, (int)dataStartOffset);
             if (regions.Count == 0) return null;
 
-            bool anyChanged = false;
+            int changedCount = 0;
             var recompressedData = new byte[regions.Count][];
 
-            for (int i = 0; i < regions.Count; i++)
+            int processedCount = 0;
+            int totalRegions = regions.Count;
+            int reportInterval = Math.Max(1, totalRegions / 50);
+
+            Parallel.For(0, totalRegions, new ParallelOptions
+            {
+                MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount)
+            }, i =>
             {
                 byte[] recompressed = RecompressPng(regions[i].Data);
                 if (recompressed.Length < regions[i].Data.Length)
                 {
                     recompressedData[i] = recompressed;
-                    anyChanged = true;
+                    Interlocked.Increment(ref changedCount);
                 }
                 else
                 {
-                    recompressedData[i] = regions[i].Data; // 元のまま
+                    recompressedData[i] = regions[i].Data;
                 }
-            }
 
-            if (!anyChanged) return null;
+                int completed = Interlocked.Increment(ref processedCount);
+                if (progress != null && (completed % reportInterval == 0 || completed == totalRegions))
+                {
+                    progress.Report((double)completed / totalRegions);
+                }
+            });
+
+            if (changedCount == 0) return null;
 
             // 新しいバイト列を構築
             long totalNewSize = 0;
@@ -180,7 +195,7 @@ namespace KK_CardCompression.Services
         }
 
         /// <summary>
-        /// PNGをBestCompressionで再エンコードする。
+        /// PNGをDefaultCompression + Subフィルタで高速再エンコードする。
         /// 再圧縮後が元より大きい場合は元のデータを返す。
         /// </summary>
         private static byte[] RecompressPng(byte[] originalPngData)
@@ -192,8 +207,8 @@ namespace KK_CardCompression.Services
                 using var image = SixLabors.ImageSharp.Image.Load(input);
                 image.SaveAsPng(output, new PngEncoder
                 {
-                    CompressionLevel = PngCompressionLevel.BestCompression,
-                    FilterMethod = PngFilterMethod.Adaptive,
+                    CompressionLevel = PngCompressionLevel.DefaultCompression,
+                    FilterMethod = PngFilterMethod.Sub,
                 });
 
                 byte[] recompressed = output.ToArray();
