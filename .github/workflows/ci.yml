@@ -17,10 +17,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: actions/checkout@v4
 
       - name: Setup .NET 8
-        uses: actions/setup-dotnet@3951f7a3d0e4d4e2f034b34c16e3b4f5e4da1e17 # v4.3.0
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
@@ -72,14 +72,14 @@ jobs:
           } >> $env:GITHUB_STEP_SUMMARY
 
       - name: Upload desktop tool artifact
-        uses: actions/upload-artifact@ea165f8d81b57e7110a4a3255087e54eb1c5368e # v4.6.2
+        uses: actions/upload-artifact@v4
         with:
           name: KKCC-desktop
           path: publish-desktop/KK_CardCompression.exe
           retention-days: 7
 
       - name: Upload plugin artifact
-        uses: actions/upload-artifact@ea165f8d81b57e7110a4a3255087e54eb1c5368e # v4.6.2
+        uses: actions/upload-artifact@v4
         with:
           name: KKCC-plugin
           path: |
