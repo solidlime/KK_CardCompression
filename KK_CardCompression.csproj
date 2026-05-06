@@ -51,4 +51,11 @@
     <EmbeddedResource Remove="test\**" />
   </ItemGroup>
 
+  <!-- Plugin project — separate build target -->
+  <ItemGroup>
+    <Compile Remove="KK_CardCompression.Plugin\**" />
+    <None Remove="KK_CardCompression.Plugin\**" />
+    <EmbeddedResource Remove="KK_CardCompression.Plugin\**" />
+  </ItemGroup>
+
 </Project>
