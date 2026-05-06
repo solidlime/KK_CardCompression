@@ -40,7 +40,7 @@ namespace KK_CardCompression
         private string _outputDirectory = string.Empty;
         private bool _isSyncingScroll;
         private bool _isPreviewEnabled = true;
-        private bool _isInitialized;   // LoadSettings 完了前の SaveSettings を抑制
+        private bool _isInitialized;
 
         public MainWindow()
         {
@@ -50,7 +50,6 @@ namespace KK_CardCompression
             LvOutput.ItemsSource = _outputFiles;
 
             InitCompressionLevelCombo();
-            InitAlgorithmCombo();
             UpdateInputCount();
             UpdateOutputCount();
             LoadSettings();
@@ -66,15 +65,6 @@ namespace KK_CardCompression
             CmbCompLevel.SelectedValue      = CompressionLevel.Maximum;
         }
 
-        private void InitAlgorithmCombo()
-        {
-            CmbAlgorithm.Items.Add(new AlgorithmOption("Zstd", CompressionAlgorithm.Zstd));
-            CmbAlgorithm.Items.Add(new AlgorithmOption("LZMA", CompressionAlgorithm.Lzma));
-            CmbAlgorithm.DisplayMemberPath = "Label";
-            CmbAlgorithm.SelectedValuePath = "Algorithm";
-            CmbAlgorithm.SelectedValue = CompressionAlgorithm.Zstd;
-        }
-
         private void LoadSettings()
         {
             var settings = IniSettingsService.Load();
@@ -86,12 +76,10 @@ namespace KK_CardCompression
             }
 
             SelectCompressionLevel(settings.CompressionLevel);
-            SelectAlgorithm(settings.CompressionAlgorithm);
-            ChkRecompressPng.IsChecked = settings.RecompressPng;
             _isPreviewEnabled = settings.PreviewEnabled;
             TglPreviewEnabled.IsChecked = _isPreviewEnabled;
 
-            _isInitialized = true; // これ以降の SaveSettings 呼び出しを有効化
+            _isInitialized = true;
         }
 
         private void SelectCompressionLevel(CompressionLevel level)
@@ -104,73 +92,24 @@ namespace KK_CardCompression
                     return;
                 }
             }
-            // Fallback to Maximum if not found
             CmbCompLevel.SelectedValue = CompressionLevel.Maximum;
-        }
-
-        private void SelectAlgorithm(CompressionAlgorithm algorithm)
-        {
-            foreach (var item in CmbAlgorithm.Items)
-            {
-                if (item is AlgorithmOption opt && opt.Algorithm == algorithm)
-                {
-                    CmbAlgorithm.SelectedItem = opt;
-                    return;
-                }
-            }
-            CmbAlgorithm.SelectedValue = CompressionAlgorithm.Zstd;
         }
 
         private void SaveSettings()
         {
-            if (!_isInitialized) return; // 初期化完了前は保存しない
+            if (!_isInitialized) return;
             IniSettingsService.Save(new AppSettings
             {
                 LastOutputDirectory  = _outputDirectory,
                 CompressionLevel     = GetSelectedCompressionLevel(),
-                CompressionAlgorithm = GetSelectedAlgorithm(),
-                RecompressPng        = ChkRecompressPng.IsChecked == true,
                 PreviewEnabled       = _isPreviewEnabled,
             });
         }
 
         private CompressionLevel GetSelectedCompressionLevel()
-            => CmbCompLevel?.SelectedValue is CompressionLevel l ? l : (CompressionLevel)ZstdLevel.Better;
+            => CmbCompLevel?.SelectedValue is CompressionLevel l ? l : CompressionLevel.Maximum;
 
         private void CmbCompLevel_SelectionChanged(object sender, SelectionChangedEventArgs e)
-            => SaveSettings();
-
-        private CompressionAlgorithm GetSelectedAlgorithm()
-            => CmbAlgorithm?.SelectedValue is CompressionAlgorithm a ? a : CompressionAlgorithm.Zstd;
-
-        private void UpdateCompressionLevelItems()
-        {
-            var algorithm = GetSelectedAlgorithm();
-            CmbCompLevel.Items.Clear();
-
-            if (algorithm == CompressionAlgorithm.Zstd)
-            {
-                CmbCompLevel.Items.Add(new CompressionOption("Fast（最速）", (CompressionLevel)ZstdLevel.Fast));
-                CmbCompLevel.Items.Add(new CompressionOption("Better（推奨）", (CompressionLevel)ZstdLevel.Better));
-                CmbCompLevel.Items.Add(new CompressionOption("Best（高圧縮）", (CompressionLevel)ZstdLevel.Best));
-                CmbCompLevel.SelectedValue = (CompressionLevel)ZstdLevel.Better;
-            }
-            else // Lzma
-            {
-                CmbCompLevel.Items.Add(new CompressionOption("Fast（最速）", CompressionLevel.Fast));
-                CmbCompLevel.Items.Add(new CompressionOption("Maximum（推奨）", CompressionLevel.Maximum));
-                CmbCompLevel.Items.Add(new CompressionOption("Ultra（最高圧縮）", CompressionLevel.Ultra));
-                CmbCompLevel.SelectedValue = CompressionLevel.Maximum;
-            }
-        }
-
-        private void CmbAlgorithm_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            UpdateCompressionLevelItems();
-            SaveSettings();
-        }
-
-        private void ChkRecompressPng_Changed(object sender, RoutedEventArgs e)
             => SaveSettings();
 
         private void TglPreviewEnabled_Changed(object sender, RoutedEventArgs e)
@@ -576,12 +515,8 @@ namespace KK_CardCompression
             var files = _inputFiles.ToList();
             int total = files.Count;
 
-            // 処理開始前に UI スレッドで設定値を取得
-            var algorithm        = GetSelectedAlgorithm();
             var compressionLevel = GetSelectedCompressionLevel();
-            bool recompressPng   = ChkRecompressPng.IsChecked == true;
 
-            // 出力エントリと圧縮判定を先に全て作成（UIスレッド）
             var entries = new OutputFileEntry[total];
             var doCompressFlags = new bool[total];
             for (int i = 0; i < total; i++)
@@ -595,10 +530,9 @@ namespace KK_CardCompression
             }
             UpdateOutputCount();
 
-            // 並列処理（コア数分のファイルを同時処理）
             int maxConcurrency = Math.Max(1, Environment.ProcessorCount);
             using var semaphore = new SemaphoreSlim(maxConcurrency, maxConcurrency);
-            var counters = new int[3]; // [0]=success, [1]=fail, [2]=completed
+            var counters = new int[3];
 
             var tasks = files.Select(async (source, i) =>
             {
@@ -614,7 +548,7 @@ namespace KK_CardCompression
                     try
                     {
                         result = await Task.Run(
-                            () => ProcessSingleFile(source.FullPath, doCompressFlags[i], algorithm, compressionLevel, recompressPng, progress),
+                            () => ProcessSingleFile(source.FullPath, doCompressFlags[i], compressionLevel, progress),
                             token);
                     }
                     catch (OperationCanceledException)
@@ -671,9 +605,8 @@ namespace KK_CardCompression
         private record ProcessResult(bool Success, string? OutputPath, string? ErrorMessage = null);
 
         private ProcessResult ProcessSingleFile(string inputPath, bool compress,
-                                                 CompressionAlgorithm algorithm,
-                                                 CompressionLevel compressionLevel, bool recompressPng,
-                                                 IProgress<double> progress)
+                                                CompressionLevel compressionLevel,
+                                                IProgress<double> progress)
         {
             string backupPath = inputPath + ".bak";
             try
@@ -689,7 +622,7 @@ namespace KK_CardCompression
                     Directory.CreateDirectory(outputDir);
 
                 if (compress)
-                    CompressionService.CompressFile(inputPath, outputPath, algorithm, compressionLevel, (ZstdLevel)compressionLevel, recompressPng, progress);
+                    CompressionService.CompressFile(inputPath, outputPath, compressionLevel, progress);
                 else
                     CompressionService.DecompressFile(inputPath, outputPath, progress);
 
@@ -779,6 +712,5 @@ namespace KK_CardCompression
         }
 
         private sealed record CompressionOption(string Label, CompressionLevel Level);
-        private sealed record AlgorithmOption(string Label, CompressionAlgorithm Algorithm);
     }
 }

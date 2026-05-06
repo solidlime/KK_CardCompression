@@ -3,9 +3,6 @@ using System.IO;
 using System.Text;
 using SevenZip;
 using SevenZip.Compression.LZMA;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Png;
-using ZstdSharp;
 
 namespace KK_CardCompression.Services
 {
@@ -16,18 +13,9 @@ namespace KK_CardCompression.Services
     /// </summary>
     public enum CompressionLevel
     {
-        Fast    = 5,    // 最速（LZMA用）
-        Maximum = 128,  // 高圧縮（LZMA用）
-        Ultra   = 273,  // 最高圧縮（LZMA用）
-    }
-
-    /// <summary>
-    /// 圧縮アルゴリズム。
-    /// </summary>
-    public enum CompressionAlgorithm
-    {
-        Lzma,
-        Zstd,
+        Fast    = 5,    // 最速
+        Maximum = 128,  // 高圧縮（推奨）
+        Ultra   = 273,  // 最高圧縮
     }
 
     internal static class KkToken
@@ -37,10 +25,15 @@ namespace KK_CardCompression.Services
         public const string CoordinateToken = "【KoiKatuClothes】";
     }
 
+    internal static class KkFormatMarker
+    {
+        public const int Raw  = 100;
+        public const int Lzma = 101;
+    }
+
     public static class CompressionService
     {
-        // LZMA encoder settings — Fastest speed, VeryLarge (64 MiB) dictionary
-        // matches the original plugin settings
+        // LZMA encoder settings — 64 MiB dictionary, matches KK_SaveLoadCompression
         private static readonly CoderPropID[] s_propIDs =
         {
             CoderPropID.DictionarySize,
@@ -58,7 +51,7 @@ namespace KK_CardCompression.Services
 
         /// <summary>
         /// ファイルが圧縮済みか判定する。
-        /// PNG 末尾の直後にある圧縮マーカー (int32: 101/102/103 or Version "101.x"/"102.x"/"103.x") を確認する。
+        /// PNG 末尾の直後にある圧縮マーカー (int32: 101 or Version "101.x") を確認する。
         /// </summary>
         public static bool IsCompressed(string filePath)
         {
@@ -77,23 +70,11 @@ namespace KK_CardCompression.Services
         }
 
         /// <summary>
-        /// KK カードファイルを LZMA で圧縮する（後方互換用）。
+        /// KK カードファイルを LZMA で圧縮する。
+        /// 出力形式: [PNGデータ] [圧縮マーカー] [トークン] [LZMA圧縮ストリーム]
         /// </summary>
         public static void CompressFile(string inputPath, string outputPath,
                                         CompressionLevel level = CompressionLevel.Maximum,
-                                        bool recompressPng = false,
-                                        IProgress<double>? progress = null)
-            => CompressFile(inputPath, outputPath, CompressionAlgorithm.Lzma, level, ZstdLevel.Better, recompressPng, progress);
-
-        /// <summary>
-        /// KK カードファイルを指定されたアルゴリズムで圧縮する。
-        /// 出力形式: [PNGデータ] [圧縮マーカー] [トークン] [圧縮ストリーム]
-        /// </summary>
-        public static void CompressFile(string inputPath, string outputPath,
-                                        CompressionAlgorithm algorithm,
-                                        CompressionLevel lzmaLevel = CompressionLevel.Maximum,
-                                        ZstdLevel zstdLevel = ZstdLevel.Better,
-                                        bool recompressPng = false,
                                         IProgress<double>? progress = null)
         {
             using var inFs  = new FileStream(inputPath,  FileMode.Open,   FileAccess.Read,  FileShare.ReadWrite);
@@ -106,16 +87,7 @@ namespace KK_CardCompression.Services
             byte[] pngData   = LoadPngBytes(br);
             long   extraStart = inFs.Position;
 
-            // PNG 再圧縮（オプション）
-            if (recompressPng)
-            {
-                pngData = RecompressPng(pngData);
-                progress?.Report(0.05);
-            }
-            else
-            {
-                progress?.Report(0.05);
-            }
+            progress?.Report(0.05);
 
             // トークン種別を判定（カーソルはextraStartに戻る）
             string? token = GuessToken(br);
@@ -133,20 +105,10 @@ namespace KK_CardCompression.Services
             bw.Write(pngData);
 
             // 圧縮マーカー + トークン を出力
-            if (algorithm == CompressionAlgorithm.Lzma)
-            {
-                if (token == KkToken.StudioToken)
-                    bw.Write(new Version(101, 0, 0, 0).ToString()); // BinaryWriter string
-                else
-                    bw.Write(101); // int32
-            }
-            else // Zstd
-            {
-                if (token == KkToken.StudioToken)
-                    bw.Write(new Version(103, 0, 0, 0).ToString()); // BinaryWriter string
-                else
-                    bw.Write(103); // int32
-            }
+            if (token == KkToken.StudioToken)
+                bw.Write(new Version(101, 0, 0, 0).ToString());
+            else
+                bw.Write(101);
             bw.Write(token);
             progress?.Report(0.12);
 
@@ -158,63 +120,31 @@ namespace KK_CardCompression.Services
                 extraData = msExtra.ToArray();
             }
 
-            // 埋め込みPNG再圧縮（全ファイル種別）
-            if (recompressPng)
-            {
-                long dataStartOffset;
-                using (var ms = new MemoryStream(extraData))
-                using (var reader = new BinaryReader(ms, Encoding.UTF8))
-                {
-                    if (token == KkToken.StudioToken)
-                    {
-                        // Studio: バージョン文字列 + トークン文字列をスキップ
-                        reader.ReadString(); // 元のバージョン文字列 ("100.0.0.0")
-                        reader.ReadString(); // トークン ("【KStudio】")
-                    }
-                    else
-                    {
-                        // キャラ/衣装: int32マーカー + トークン文字列をスキップ
-                        reader.ReadInt32();  // マーカー (100)
-                        reader.ReadString(); // トークン
-                    }
-                    dataStartOffset = ms.Position;
-                }
+            // LZMA 圧縮
+            using var msCompressed = new MemoryStream();
+            LzmaCompress(new MemoryStream(extraData), msCompressed, level, progress, 0.12, 0.95);
 
-                // Report progress from 0.12 to 0.50 during PNG recompression
-                var pngProgress = progress != null
-                    ? new Progress<double>(p => progress.Report(0.12 + p * 0.38))
-                    : null;
-                var processed = ScenePreprocessor.Process(extraData, dataStartOffset, pngProgress);
-                if (processed != null)
-                    extraData = processed;
-                progress?.Report(0.50);
-            }
+            // 圧縮後の検証（compress → decompress → compare）
+            msCompressed.Seek(0, SeekOrigin.Begin);
+            using var msDecompressed = new MemoryStream();
+            LzmaDecompress(msCompressed, msDecompressed);
+            msDecompressed.Seek(0, SeekOrigin.Begin);
 
-            // 圧縮
-            if (algorithm == CompressionAlgorithm.Lzma)
-            {
-                using var msCompressed = new MemoryStream();
-                LzmaCompress(new MemoryStream(extraData), msCompressed, lzmaLevel, progress, 0.50, 0.95);
-                bw.Write(msCompressed.ToArray());
-            }
-            else // Zstd
-            {
-                byte[] compressed;
-                if (token == KkToken.StudioToken)
-                    compressed = ZstdCompressionService.CompressWithDictionary(extraData, zstdLevel);
-                else
-                    compressed = ZstdCompressionService.Compress(extraData, zstdLevel);
-                extraData = null; // Allow GC to collect before writing
-                bw.Write(compressed);
-                progress?.Report(0.95);
-            }
+            if (msDecompressed.Length != extraData.Length)
+                throw new InvalidDataException("圧縮後の検証に失敗しました（サイズ不一致）。");
+
+            if (!extraData.AsSpan().SequenceEqual(msDecompressed.ToArray().AsSpan()))
+                throw new InvalidDataException("圧縮後の検証に失敗しました（データ不一致）。");
+
+            msCompressed.Seek(0, SeekOrigin.Begin);
+            bw.Write(msCompressed.ToArray());
 
             progress?.Report(1.0);
         }
 
         /// <summary>
         /// 圧縮済み KK カードファイルを元に戻す。
-        /// マーカー 100/101/102/103 すべてに対応。
+        /// マーカー 101（LZMA）に対応。
         /// </summary>
         public static void DecompressFile(string inputPath, string outputPath,
                                           IProgress<double>? progress = null)
@@ -234,113 +164,36 @@ namespace KK_CardCompression.Services
             int peekMarker = br.ReadInt32();
             inFs.Seek(markerPos, SeekOrigin.Begin);
 
-            int  compressionType;
-            bool isStudio;
-
-            if (peekMarker == KkFormatMarker.Raw ||
-                peekMarker == KkFormatMarker.Lzma ||
-                peekMarker == KkFormatMarker.ZstdNoDict ||
-                peekMarker == KkFormatMarker.ZstdWithDict)
+            if (peekMarker == KkFormatMarker.Raw || peekMarker == KkFormatMarker.Lzma)
             {
-                // Non-studio: int32 マーカー
-                isStudio = false;
                 int marker = br.ReadInt32();
-                switch (marker)
-                {
-                    case KkFormatMarker.Raw:
-                        throw new InvalidDataException("このファイルは圧縮されていません。");
-                    case KkFormatMarker.Lzma:
-                        compressionType = KkFormatMarker.Lzma;
-                        break;
-                    case KkFormatMarker.ZstdNoDict:
-                        compressionType = KkFormatMarker.ZstdNoDict;
-                        break;
-                    case KkFormatMarker.ZstdWithDict:
-                        compressionType = KkFormatMarker.ZstdWithDict;
-                        break;
-                    default:
-                        throw new InvalidDataException("未知の圧縮マーカーです。");
-                }
+                if (marker == KkFormatMarker.Raw)
+                    throw new InvalidDataException("このファイルは圧縮されていません。");
+                if (marker != KkFormatMarker.Lzma)
+                    throw new InvalidDataException("未知の圧縮マーカーです。");
             }
             else
             {
-                // Studio: Version 文字列マーカー
-                isStudio = true;
                 string versionStr = br.ReadString();
                 if (!Version.TryParse(versionStr, out var v))
                     throw new InvalidDataException("圧縮マーカーを認識できませんでした。");
 
-                switch (v.Major)
-                {
-                    case 100:
-                        throw new InvalidDataException("このファイルは圧縮されていません。");
-                    case 101:
-                        compressionType = KkFormatMarker.Lzma;
-                        break;
-                    case 102:
-                        compressionType = KkFormatMarker.ZstdNoDict;
-                        break;
-                    case 103:
-                        compressionType = KkFormatMarker.ZstdWithDict;
-                        break;
-                    default:
-                        throw new InvalidDataException("未知の圧縮マーカーです。");
-                }
+                if (v.Major == KkFormatMarker.Raw)
+                    throw new InvalidDataException("このファイルは圧縮されていません。");
+                if (v.Major != KkFormatMarker.Lzma)
+                    throw new InvalidDataException("未知の圧縮マーカーです。");
             }
 
-            // トークンを読み取り／スキップ
-            if (isStudio)
-            {
-                // Studio トークン "【KStudio】" は決め打ち、ストリームからスキップ
-                br.ReadString();
-            }
-            else
-            {
-                // 非スタジオ: トークン文字列を読み取る（今後の拡張に備えて保持するが現状はスキップのみ）
-                br.ReadString();
-            }
+            // トークンをスキップ
+            br.ReadString();
             progress?.Report(0.12);
 
             // PNG を出力
             bw.Write(pngData);
             bw.Flush();
 
-            // 圧縮方式に応じて展開
-            switch (compressionType)
-            {
-                case KkFormatMarker.Lzma:
-                    LzmaDecompress(inFs, outFs, progress);
-                    break;
-
-                case KkFormatMarker.ZstdNoDict:
-                {
-                    byte[] compressed;
-                    using (var ms = new MemoryStream())
-                    {
-                        inFs.CopyTo(ms);
-                        compressed = ms.ToArray();
-                    }
-                    byte[] decompressed = ZstdCompressionService.Decompress(compressed, useDictionary: false);
-                    outFs.Write(decompressed, 0, decompressed.Length);
-                    break;
-                }
-
-                case KkFormatMarker.ZstdWithDict:
-                {
-                    byte[] compressed;
-                    using (var ms = new MemoryStream())
-                    {
-                        inFs.CopyTo(ms);
-                        compressed = ms.ToArray();
-                    }
-                    byte[] decompressed = ZstdCompressionService.Decompress(compressed, useDictionary: true);
-                    outFs.Write(decompressed, 0, decompressed.Length);
-                    break;
-                }
-
-                default:
-                    throw new InvalidDataException("未知の圧縮形式です。");
-            }
+            // LZMA 展開
+            LzmaDecompress(inFs, outFs, progress);
 
             progress?.Report(1.0);
         }
@@ -348,33 +201,6 @@ namespace KK_CardCompression.Services
         // ---------------------------------------------------------------
         // PNG helpers
         // ---------------------------------------------------------------
-
-        /// <summary>
-        /// PNG データを DefaultCompression + Sub フィルタで高速再エンコードする。
-        /// 再圧縮後のサイズが元より大きい場合は元のデータをそのまま返す。
-        /// </summary>
-        internal static byte[] RecompressPng(byte[] originalPngData)
-        {
-            try
-            {
-                using var input  = new MemoryStream(originalPngData);
-                using var output = new MemoryStream();
-
-                using var image = SixLabors.ImageSharp.Image.Load(input);
-                image.SaveAsPng(output, new PngEncoder
-                {
-                    CompressionLevel = PngCompressionLevel.DefaultCompression,
-                    FilterMethod     = PngFilterMethod.Sub,
-                });
-
-                byte[] recompressed = output.ToArray();
-                return recompressed.Length < originalPngData.Length ? recompressed : originalPngData;
-            }
-            catch
-            {
-                return originalPngData;
-            }
-        }
 
         internal static byte[] LoadPngBytes(BinaryReader br)
         {
@@ -390,7 +216,6 @@ namespace KK_CardCompression.Services
             br.ReadBytes(8); // PNG magic
             while (true)
             {
-                // PNG chunk length は big-endian
                 byte[] lenBytes = br.ReadBytes(4);
                 int    length   = (lenBytes[0] << 24) | (lenBytes[1] << 16) | (lenBytes[2] << 8) | lenBytes[3];
                 byte[] type     = br.ReadBytes(4);
@@ -410,14 +235,14 @@ namespace KK_CardCompression.Services
             try
             {
                 int r = br.ReadInt32();
-                if (r == 101 || r == 102 || r == 103) return true;
-                if (r == 100) return false;
+                if (r == KkFormatMarker.Lzma) return true;
+                if (r == KkFormatMarker.Raw) return false;
 
                 // Studio: 先頭がバージョン文字列
                 br.BaseStream.Seek(pos, SeekOrigin.Begin);
                 string st = br.ReadString();
                 if (Version.TryParse(st, out var v))
-                    return v.Major == 101 || v.Major == 102 || v.Major == 103;
+                    return v.Major == KkFormatMarker.Lzma;
             }
             catch { /* 不正なファイル */ }
             finally
@@ -436,7 +261,7 @@ namespace KK_CardCompression.Services
             try
             {
                 int r = br.ReadInt32();
-                if (r != 100 && r != 101 && r != 102 && r != 103)
+                if (r != KkFormatMarker.Raw && r != KkFormatMarker.Lzma)
                 {
                     // Studio: 先頭はバージョン文字列
                     return KkToken.StudioToken;
@@ -475,7 +300,7 @@ namespace KK_CardCompression.Services
                 2,                 // PosStateBits
                 3,                 // LitContextBits
                 0,                 // LitPosBits
-                (int)level,        // NumFastBytes: 圧縮レベルによって変わる
+                (int)level,        // NumFastBytes
                 "BT4",             // MatchFinder
                 true,              // EndMarker
             };

@@ -25,16 +25,11 @@
   <ItemGroup>
     <PackageReference Include="LZMA-SDK" Version="19.0.0" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
-    <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
   </ItemGroup>
 
   <ItemGroup>
     <Resource Include="Assets\app-icon.png"/>
     <None Include="Assets\app-icon.ico"/>
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="Resources\kk_universal_dict.zstd" />
   </ItemGroup>
 
   <!-- Syncthing / Synology conflict copies — exclude from compilation -->
@@ -51,11 +46,11 @@
     <EmbeddedResource Remove="test\**" />
   </ItemGroup>
 
-  <!-- Plugin project — separate build target -->
+  <!-- TestRunner — exclude from compilation -->
   <ItemGroup>
-    <Compile Remove="KK_CardCompression.Plugin\**" />
-    <None Remove="KK_CardCompression.Plugin\**" />
-    <EmbeddedResource Remove="KK_CardCompression.Plugin\**" />
+    <Compile Remove="TestRunner\**" />
+    <None Remove="TestRunner\**" />
+    <EmbeddedResource Remove="TestRunner\**" />
   </ItemGroup>
 
 </Project>

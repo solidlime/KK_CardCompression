@@ -8,8 +8,6 @@ namespace KK_CardCompression.Services
     {
         public string LastOutputDirectory { get; set; } = string.Empty;
         public CompressionLevel CompressionLevel { get; set; } = CompressionLevel.Maximum;
-        public CompressionAlgorithm CompressionAlgorithm { get; set; } = CompressionAlgorithm.Zstd;
-        public bool RecompressPng { get; set; } = false;
         public bool PreviewEnabled { get; set; } = true;
     }
 
@@ -47,14 +45,6 @@ namespace KK_CardCompression.Services
                     && Enum.TryParse<CompressionLevel>(lvl, ignoreCase: true, out var cl))
                     settings.CompressionLevel = cl;
 
-                if (map.TryGetValue("CompressionAlgorithm", out var algo)
-                    && Enum.TryParse<CompressionAlgorithm>(algo, ignoreCase: true, out var ca))
-                    settings.CompressionAlgorithm = ca;
-
-                if (map.TryGetValue("RecompressPng", out var rpng)
-                    && bool.TryParse(rpng, out var rp))
-                    settings.RecompressPng = rp;
-
                 if (map.TryGetValue("PreviewEnabled", out var prev)
                     && bool.TryParse(prev, out var pe))
                     settings.PreviewEnabled = pe;
@@ -74,8 +64,6 @@ namespace KK_CardCompression.Services
                 "[Settings]",
                 $"LastOutputDirectory={settings.LastOutputDirectory}",
                 $"CompressionLevel={settings.CompressionLevel}",
-                $"CompressionAlgorithm={settings.CompressionAlgorithm}",
-                $"RecompressPng={settings.RecompressPng}",
                 $"PreviewEnabled={settings.PreviewEnabled}",
                 string.Empty,
             });
