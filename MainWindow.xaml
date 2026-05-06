@@ -289,8 +289,7 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal">
-                    <Button x:Name="BtnAuto" Content="自動判定" Width="100" Margin="0,0,8,0" Style="{StaticResource PrimaryButton}" Click="BtnAuto_Click"/>
-                    <Button x:Name="BtnCompress" Content="圧縮" Width="80" Margin="0,0,8,0" Style="{StaticResource ActionButton}" Click="BtnCompress_Click"/>
+                    <Button x:Name="BtnCompress" Content="圧縮" Width="80" Margin="0,0,8,0" Style="{StaticResource PrimaryButton}" Click="BtnCompress_Click"/>
                     <Button x:Name="BtnDecompress" Content="解凍" Width="80" Margin="0,0,8,0" Style="{StaticResource ActionButton}" Click="BtnDecompress_Click"/>
                     <Button x:Name="BtnCancel" Content="中止" Width="80" Margin="0,0,8,0" Style="{StaticResource ActionButton}" Click="BtnCancel_Click" IsEnabled="False"/>
                     <Button x:Name="BtnClear" Content="クリア" Width="80" Margin="0,0,0,0" Style="{StaticResource ActionButton}" Click="BtnClear_Click"/>

@@ -58,10 +58,9 @@ namespace KK_CardCompression
 
         private void InitCompressionLevelCombo()
         {
-            CmbCompLevel.Items.Add(new CompressionOption("Fast（最速）",   CompressionLevel.Fast));
-            CmbCompLevel.Items.Add(new CompressionOption("Normal（バランス）",        CompressionLevel.Normal));
-            CmbCompLevel.Items.Add(new CompressionOption("Maximum（高圧縮）",         CompressionLevel.Maximum));
-            CmbCompLevel.Items.Add(new CompressionOption("Ultra（最高圧縮）",         CompressionLevel.Ultra));
+            CmbCompLevel.Items.Add(new CompressionOption("Fast（最速）", CompressionLevel.Fast));
+            CmbCompLevel.Items.Add(new CompressionOption("Maximum（高圧縮）", CompressionLevel.Maximum));
+            CmbCompLevel.Items.Add(new CompressionOption("Ultra（最高圧縮）", CompressionLevel.Ultra));
             CmbCompLevel.DisplayMemberPath  = "Label";
             CmbCompLevel.SelectedValuePath  = "Level";
             CmbCompLevel.SelectedValue      = CompressionLevel.Maximum;
@@ -152,17 +151,14 @@ namespace KK_CardCompression
             if (algorithm == CompressionAlgorithm.Zstd)
             {
                 CmbCompLevel.Items.Add(new CompressionOption("Fast（最速）", (CompressionLevel)ZstdLevel.Fast));
-                CmbCompLevel.Items.Add(new CompressionOption("Default", (CompressionLevel)ZstdLevel.Default));
                 CmbCompLevel.Items.Add(new CompressionOption("Better（推奨）", (CompressionLevel)ZstdLevel.Better));
-                CmbCompLevel.Items.Add(new CompressionOption("Best", (CompressionLevel)ZstdLevel.Best));
-                CmbCompLevel.Items.Add(new CompressionOption("Ultra", (CompressionLevel)ZstdLevel.Ultra));
+                CmbCompLevel.Items.Add(new CompressionOption("Best（高圧縮）", (CompressionLevel)ZstdLevel.Best));
                 CmbCompLevel.SelectedValue = (CompressionLevel)ZstdLevel.Better;
             }
             else // Lzma
             {
                 CmbCompLevel.Items.Add(new CompressionOption("Fast（最速）", CompressionLevel.Fast));
-                CmbCompLevel.Items.Add(new CompressionOption("Normal（バランス）", CompressionLevel.Normal));
-                CmbCompLevel.Items.Add(new CompressionOption("Maximum（高圧縮）", CompressionLevel.Maximum));
+                CmbCompLevel.Items.Add(new CompressionOption("Maximum（推奨）", CompressionLevel.Maximum));
                 CmbCompLevel.Items.Add(new CompressionOption("Ultra（最高圧縮）", CompressionLevel.Ultra));
                 CmbCompLevel.SelectedValue = CompressionLevel.Maximum;
             }
@@ -527,7 +523,6 @@ namespace KK_CardCompression
             _cts?.Cancel();
         }
 
-        private async void BtnAuto_Click(object sender, RoutedEventArgs e) => await ProcessFilesAsync(null);
         private async void BtnCompress_Click(object sender, RoutedEventArgs e) => await ProcessFilesAsync(true);
         private async void BtnDecompress_Click(object sender, RoutedEventArgs e) => await ProcessFilesAsync(false);
 
@@ -546,7 +541,6 @@ namespace KK_CardCompression
 
         private void SetProcessingState(bool processing)
         {
-            BtnAuto.IsEnabled = !processing;
             BtnCompress.IsEnabled = !processing;
             BtnDecompress.IsEnabled = !processing;
             BtnClear.IsEnabled = !processing;

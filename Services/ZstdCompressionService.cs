@@ -11,10 +11,8 @@ namespace KK_CardCompression.Services
     public enum ZstdLevel
     {
         Fast = 3,
-        Default = 6,
         Better = 14,
         Best = 19,
-        Ultra = 22,
     }
 
     /// <summary>

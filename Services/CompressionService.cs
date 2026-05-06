@@ -16,10 +16,9 @@ namespace KK_CardCompression.Services
     /// </summary>
     public enum CompressionLevel
     {
-        Fast    = 5,    // 最速（オリジナルプラグインと同じ）
-        Normal  = 32,   // バランス
-        Maximum = 128,  // 高圧縮
-        Ultra   = 273,  // 最高圧縮（LZMA SDK の最大値）
+        Fast    = 5,    // 最速（LZMA用）
+        Maximum = 128,  // 高圧縮（LZMA用）
+        Ultra   = 273,  // 最高圧縮（LZMA用）
     }
 
     /// <summary>
