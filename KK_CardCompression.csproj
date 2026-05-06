@@ -44,4 +44,11 @@
     <None    Include="**\*.sync-conflict-*" />
   </ItemGroup>
 
+  <!-- Test projects — exclude from compilation -->
+  <ItemGroup>
+    <Compile Remove="test\**" />
+    <None Remove="test\**" />
+    <EmbeddedResource Remove="test\**" />
+  </ItemGroup>
+
 </Project>

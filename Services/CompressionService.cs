@@ -153,15 +153,25 @@ namespace KK_CardCompression.Services
                 extraData = msExtra.ToArray();
             }
 
-            // Studio + recompressPng の場合、ScenePreprocessor で前処理
-            if (token == KkToken.StudioToken && recompressPng)
+            // 埋め込みPNG再圧縮（全ファイル種別）
+            if (recompressPng)
             {
                 long dataStartOffset;
                 using (var ms = new MemoryStream(extraData))
-                using (var reader = new BinaryReader(ms))
+                using (var reader = new BinaryReader(ms, Encoding.UTF8))
                 {
-                    reader.ReadString(); // 元のバージョン文字列 ("100.0.0.0")
-                    reader.ReadString(); // トークン ("【KStudio】")
+                    if (token == KkToken.StudioToken)
+                    {
+                        // Studio: バージョン文字列 + トークン文字列をスキップ
+                        reader.ReadString(); // 元のバージョン文字列 ("100.0.0.0")
+                        reader.ReadString(); // トークン ("【KStudio】")
+                    }
+                    else
+                    {
+                        // キャラ/衣装: int32マーカー + トークン文字列をスキップ
+                        reader.ReadInt32();  // マーカー (100)
+                        reader.ReadString(); // トークン
+                    }
                     dataStartOffset = ms.Position;
                 }
 
