@@ -105,21 +105,21 @@ namespace KK_CardCompression
     /// </summary>
     public static class ZstdDecompressorHelper
     {
-        private static byte[]? s_dictionary;
+        private static byte[] s_dictionary;
         private static readonly object s_lock = new object();
 
         public static byte[] LoadDictionary()
         {
             lock (s_lock)
             {
-                if (s_dictionary != null) return s_dictionary;
+                if (s_dictionary != null && s_dictionary.Length > 0) return s_dictionary;
 
                 var assembly = System.Reflection.Assembly.GetExecutingAssembly();
                 foreach (var name in assembly.GetManifestResourceNames())
                 {
                     if (name.EndsWith("kk_universal_dict.zstd", StringComparison.OrdinalIgnoreCase))
                     {
-                        using var stream = assembly.GetManifestResourceStream(name)!;
+                        using var stream = assembly.GetManifestResourceStream(name);
                         using var ms = new MemoryStream();
                         stream.CopyTo(ms);
                         s_dictionary = ms.ToArray();
@@ -170,6 +170,15 @@ namespace KK_CardCompression
     /// <summary>
     /// Harmony パッチ。
     /// ゲームがファイルを読み込む際に Zstd 圧縮データを透過的に解凍する。
+    /// 
+    /// 圧縮ファイルの構造:
+    ///   [PNG] [圧縮マーカー(102/103)] [トークン] [圧縮(元マーカー100 + トークン + ゲームデータ)]
+    /// 
+    /// 解凍後の構造:
+    ///   [PNG] [元マーカー100] [トークン] [ゲームデータ]
+    /// 
+    /// 解凍データには既にマーカー・トークン・ゲームデータが含まれるため、
+    /// PNG の後に解凍データをそのまま結合すればよい。
     /// </summary>
     public static class Patches
     {
@@ -198,6 +207,7 @@ namespace KK_CardCompression
 
         /// <summary>
         /// BinaryReader 形式の文字列を読み取る。
+        /// BinaryWriter.Write(string) と互換: 7bit エンコード長 + UTF-8 バイト列。
         /// </summary>
         private static string ReadBinaryString(byte[] data, int offset, out int endOffset)
         {
@@ -217,7 +227,7 @@ namespace KK_CardCompression
         /// ファイルが Zstd 圧縮なら解凍し、一時ファイルパスを返す。
         /// 未圧縮または LZMA 圧縮の場合は null を返す。
         /// </summary>
-        private static string? TryDecompress(string path)
+        private static string TryDecompress(string path)
         {
             try
             {
@@ -236,12 +246,13 @@ namespace KK_CardCompression
                 // マーカー判定
                 int firstInt = BitConverter.ToInt32(fileData, pngEnd);
                 int marker;
-                bool isStudio = false;
+                bool isStudio;
 
                 if (firstInt == KkFormatMarker.Raw || firstInt == KkFormatMarker.Lzma
                     || firstInt == KkFormatMarker.ZstdNoDict || firstInt == KkFormatMarker.ZstdWithDict)
                 {
                     marker = firstInt;
+                    isStudio = false;
                 }
                 else
                 {
@@ -265,24 +276,23 @@ namespace KK_CardCompression
                 if (marker != KkFormatMarker.ZstdNoDict && marker != KkFormatMarker.ZstdWithDict)
                     return null;
 
-                // PNG データを抽出
-                byte[] pngData = new byte[pngEnd];
-                Array.Copy(fileData, pngData, pngEnd);
-
-                // マーカーとトークンを読み飛ばす
+                // マーカーとトークンを読み飛ばして圧縮データの開始位置を特定
                 int pos;
                 if (!isStudio)
                 {
+                    // キャラ/衣装: int32 マーカー + トークン文字列
                     pos = pngEnd + 4;
-                    ReadBinaryString(fileData, pos, out pos); // トークン
+                    ReadBinaryString(fileData, pos, out pos); // トークンをスキップ
                 }
                 else
                 {
-                    ReadBinaryString(fileData, pngEnd, out pos); // バージョン文字列
-                    ReadBinaryString(fileData, pos, out pos);   // トークン
+                    // スタジオ: バージョン文字列 + トークン文字列
+                    ReadBinaryString(fileData, pngEnd, out pos); // バージョンをスキップ
+                    ReadBinaryString(fileData, pos, out pos);     // トークンをスキップ
                 }
 
                 // 圧縮データを解凍
+                // 解凍データ = [元マーカー100] [トークン] [ゲームデータ]
                 byte[] compressedData = new byte[fileData.Length - pos];
                 Array.Copy(fileData, pos, compressedData, 0, compressedData.Length);
 
@@ -292,40 +302,21 @@ namespace KK_CardCompression
                 else
                     decompressedData = ZstdDecompressorHelper.Decompress(compressedData);
 
-                // 元の形式に復元: [PNG] [マーカー100] [トークン] [ゲームデータ]
-                using var ms = new MemoryStream();
-                using (var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true))
-                {
-                    bw.Write(pngData);
-                    bw.Write(KkFormatMarker.Raw); // マーカー 100（未圧縮）
-                    if (!isStudio)
-                    {
-                        // キャラ/衣装: トークン文字列
-                        int tokenStart = pngEnd + 4;
-                        string token = ReadBinaryString(fileData, tokenStart, out int tokenEnd);
-                        bw.Write(token);
-                    }
-                    else
-                    {
-                        // スタジオ: バージョン文字列 + トークン文字列
-                        string versionStr = ReadBinaryString(fileData, pngEnd, out int afterVersion);
-                        string token = ReadBinaryString(fileData, afterVersion, out _);
-                        bw.Write(versionStr);
-                        bw.Write(token);
-                    }
-                }
-                ms.Write(decompressedData, 0, decompressedData.Length);
+                // 元の形式に復元: [PNG] + [解凍データ(マーカー100 + トークン + ゲームデータ)]
+                byte[] result = new byte[pngEnd + decompressedData.Length];
+                Array.Copy(fileData, result, pngEnd);                    // PNG 部分
+                Array.Copy(decompressedData, 0, result, pngEnd, decompressedData.Length); // 解凍データ
 
                 // 一時ファイルに書き出し
                 string tmpPath = Path.Combine(
                     KK_CardCompressionPlugin.CacheDirectory.FullName,
                     Path.GetFileName(path));
 
-                File.WriteAllBytes(tmpPath, ms.ToArray());
+                File.WriteAllBytes(tmpPath, result);
 
                 KK_CardCompressionPlugin.Log.LogInfo(
                     $"Decompressed Zstd{(marker == KkFormatMarker.ZstdWithDict ? "+dict" : "")}: " +
-                    $"{fileData.Length} -> {ms.Length} bytes");
+                    $"{fileData.Length} -> {result.Length} bytes");
 
                 return tmpPath;
             }
@@ -385,7 +376,7 @@ namespace KK_CardCompression
 
             try
             {
-                string? result = TryDecompress(path);
+                string result = TryDecompress(path);
                 if (result != null)
                 {
                     path = result;
