@@ -26,4 +26,8 @@
     <EmbeddedResource Include="..\Resources\kk_universal_dict.zstd" Link="kk_universal_dict.zstd" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="ILRepack.Lib.MSBuild.Task" Version="2.0.44.2" />
+  </ItemGroup>
+
 </Project>
