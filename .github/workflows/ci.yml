@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.head_ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@3951f7a3d0e4d4e2f034b34c16e3b4f5e4da1e17 # v4.3.0
+        with:
+          dotnet-version: '8.0.x'
+
+      # --- デスクトップツール ---
+
+      - name: Build desktop tool
+        run: dotnet build KK_CardCompression.csproj -c Release
+
+      - name: Publish desktop tool (single-file)
+        run: |
+          dotnet publish KK_CardCompression.csproj -c Release `
+            --self-contained false `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -o publish-desktop/
+
+      # --- BepInEx プラグイン ---
+
+      - name: Build plugin (ILRepack merges into single DLL)
+        run: dotnet build KK_CardCompression.Plugin/KK_CardCompression.Plugin.csproj -c Release
+
+      # --- 結果確認 ---
+
+      - name: Verify outputs
+        shell: pwsh
+        run: |
+          $exe = "publish-desktop/KK_CardCompression.exe"
+          $dll = "KK_CardCompression.Plugin/bin/Release/net48/KK_CardCompression.dll"
+
+          $errors = @()
+          if (-not (Test-Path $exe)) { $errors += "Desktop EXE not found: $exe" }
+          if (-not (Test-Path $dll)) { $errors += "Plugin DLL not found: $dll" }
+
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Host "::error::$_" }
+            exit 1
+          }
+
+          $exeSize = [math]::Round((Get-Item $exe).Length / 1MB, 2)
+          $dllSize = [math]::Round((Get-Item $dll).Length / 1KB, 1)
+
+          {
+            echo "## Build Results"
+            echo ""
+            echo "| Artifact | Size |"
+            echo "|----------|------|"
+            echo "| KK_CardCompression.exe | ${exeSize} MB |"
+            echo "| KK_CardCompression.dll | ${dllSize} KB |"
+          } >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload desktop tool artifact
+        uses: actions/upload-artifact@ea165f8d81b57e7110a4a3255087e54eb1c5368e # v4.6.2
+        with:
+          name: KKCC-desktop
+          path: publish-desktop/KK_CardCompression.exe
+          retention-days: 7
+
+      - name: Upload plugin artifact
+        uses: actions/upload-artifact@ea165f8d81b57e7110a4a3255087e54eb1c5368e # v4.6.2
+        with:
+          name: KKCC-plugin
+          path: |
+            KK_CardCompression.Plugin/bin/Release/net48/KK_CardCompression.dll
+          retention-days: 7
