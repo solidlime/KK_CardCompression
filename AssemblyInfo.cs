@@ -8,9 +8,9 @@ using System.Runtime.InteropServices;
 )]
 
 [assembly: AssemblyTitle("KK_CardCompression")]
-[assembly: AssemblyDescription("Koikatsu card compression tool")]
+[assembly: AssemblyDescription("KKCC - Koikatsu Card Compression")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("KK_CardCompression")]
+[assembly: AssemblyProduct("KKCC")]
 [assembly: AssemblyVersion("1.3.0.0")]
 [assembly: AssemblyFileVersion("1.3.0.0")]
