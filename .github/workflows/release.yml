@@ -16,7 +16,7 @@ concurrency:
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -27,8 +27,6 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      # --- デスクトップツール (EXE) ---
-
       - name: Publish desktop tool
         run: |
           dotnet publish KK_CardCompression.csproj -c Release `
@@ -36,22 +34,6 @@ jobs:
             -p:PublishSingleFile=true `
             -p:IncludeNativeLibrariesForSelfExtract=true `
             -o publish-desktop/
-
-      # --- BepInEx プラグイン (DLL) ---
-
-      # ILRepackで単一DLLにマージ（ローカル環境でのみ動作するため、
-      # CIで失敗した場合は手動ビルドしたDLLを使用すること）
-      - name: Build plugin (ILRepack merges into single DLL)
-        run: dotnet build KK_CardCompression.Plugin/KK_CardCompression.Plugin.csproj -c Release
-
-      - name: Prepare plugin distribution
-        run: |
-          New-Item -Path "publish-plugin" -ItemType Directory -Force
-          Copy-Item "KK_CardCompression.Plugin/bin/Release/net48/KK_CardCompression.dll" "publish-plugin/"
-          # 辞書ファイルはDLLに埋め込み済みだが、フォールバック用として同梱
-          Copy-Item "Resources/kk_universal_dict.zstd" "publish-plugin/"
-
-      # --- リリース作成 ---
 
       - name: Get version from tag
         id: version
@@ -67,26 +49,23 @@ jobs:
           body: |
             ## KKCC ${{ github.ref_name }}
 
-            Koikatsu カード・シーン PNG ファイルのロスレス圧縮／解凍ツール
+            Koikatsu カード・シーン PNG ファイルの LZMA ロスレス圧縮／解凍ツール
 
             ### ダウンロード
 
             | ファイル | 説明 |
             |----------|------|
             | `KK_CardCompression.exe` | デスクトップツール（.NET 8 Runtime 必要） |
-            | `KK_CardCompression.dll` | BepInEx プラグイン（ゲーム内解凍用） |
 
-            ### デスクトップツールの使い方
+            ### 使い方
             1. [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) をインストール
             2. `KK_CardCompression.exe` を実行
+            3. ファイルをドロップして「圧縮」をクリック
 
-            ### BepInEx プラグインの使い方
-            1. `BepInEx/plugins/KK_CardCompression/` フォルダを作成
-            2. `KK_CardCompression.dll` と `kk_universal_dict.zstd` を配置
-            3. ゲームを起動すると自動ロードされる
+            ### 互換性
+            - 圧縮形式は KK_SaveLoadCompression.dll（LZMA マーカー101）と完全互換
+            - 解凍には KK_SaveLoadCompression.dll が必要
           files: |
             publish-desktop/KK_CardCompression.exe
-            publish-plugin/KK_CardCompression.dll
-            publish-plugin/kk_universal_dict.zstd
           draft: false
           prerelease: false
