@@ -2,18 +2,13 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <!--
     ILRepack: ZstdSharp + System.*.dlls をプラグインDLLにマージする
-    BepInEx・ゲームアセンブリはマージせず、参照解決のみに使用
     
-    LibraryPath には以下を含める:
-    1. ビルド出力ディレクトリ（CopyLocalLockFileAssemblies で集めた参照DLL）
-    2. NuGet パッケージルート（バージョン固有のパス）
+    戦略:
+    1. dotnet publish で全参照DLLを出力ディレクトリに集める
+    2. ILRepack で ZstdSharp + System.* をマージ
+    3. マージ対象外の参照DLL（BepInEx, game assemblies等）を削除
   -->
   <Target Name="ILRepacker" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
-    <!-- ビルド出力に全参照DLLをコピー（ILRepackの参照解決用） -->
-    <PropertyGroup>
-      <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    </PropertyGroup>
-
     <ItemGroup>
       <InputAssemblies Include="$(OutputPath)$(AssemblyName).dll" />
       <InputAssemblies Include="$(OutputPath)ZstdSharp.dll" />
@@ -24,7 +19,7 @@
       <InputAssemblies Include="$(OutputPath)System.Threading.Tasks.Extensions.dll" />
     </ItemGroup>
 
-    <!-- 参照解決用: 出力ディレクトリ内のDLL + NuGet パッケージルート -->
+    <!-- 参照解決用: 出力ディレクトリ + NuGet パッケージルート -->
     <ItemGroup>
       <ILRepackLibPaths Include="$(OutputPath)" />
       <ILRepackLibPaths Include="$(NuGetPackageRoot)bepinex.baselib\5.4.20\lib\net35" />
@@ -46,6 +41,8 @@
 
     <Message Importance="high" Text="ILRepack: Merging @(InputAssemblies->Count()) assemblies into $(OutputPath)$(AssemblyName).dll" />
     <Message Importance="high" Text="ILRepack: NuGetPackageRoot = $(NuGetPackageRoot)" />
+    <Message Importance="high" Text="ILRepack: Library paths:" />
+    <Message Importance="high" Text="  %(ILRepackLibPaths.Identity)" />
 
     <ILRepack
       Parallel="true"

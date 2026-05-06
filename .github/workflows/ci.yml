@@ -39,6 +39,10 @@ jobs:
 
       # --- BepInEx プラグイン ---
 
+      # ILRepackの参照解決のため、先にpublishで全DLLを出力ディレクトリにコピー
+      - name: Publish plugin (populate reference DLLs)
+        run: dotnet publish KK_CardCompression.Plugin/KK_CardCompression.Plugin.csproj -c Release -f net48
+
       - name: Build plugin (ILRepack merges into single DLL)
         run: dotnet build KK_CardCompression.Plugin/KK_CardCompression.Plugin.csproj -c Release
 
