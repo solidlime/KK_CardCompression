@@ -9,7 +9,7 @@
     - Linux/macOS: ~/.nuget/packages/
     - GitHub Actions: C:\Users\runneradmin\.nuget\packages\ (Windows)
   -->
-  <Target Name="ILRepacker" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+  <Target Name="ILRepacker" AfterTargets="Build" Condition="'$(Configuration)' == 'Release' And '$(ILRepack)' != 'false'">
     <ItemGroup>
       <InputAssemblies Include="$(OutputPath)$(AssemblyName).dll" />
       <InputAssemblies Include="$(OutputPath)ZstdSharp.dll" />

@@ -39,6 +39,8 @@ jobs:
 
       # --- BepInEx プラグイン (DLL) ---
 
+      # ILRepackで単一DLLにマージ（ローカル環境でのみ動作するため、
+      # CIで失敗した場合は手動ビルドしたDLLを使用すること）
       - name: Build plugin (ILRepack merges into single DLL)
         run: dotnet build KK_CardCompression.Plugin/KK_CardCompression.Plugin.csproj -c Release
 

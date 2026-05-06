@@ -39,8 +39,10 @@ jobs:
 
       # --- BepInEx プラグイン ---
 
-      - name: Build plugin (ILRepack merges into single DLL)
-        run: dotnet build KK_CardCompression.Plugin/KK_CardCompression.Plugin.csproj -c Release
+      # ILRepackはGitHub Actions環境でアセンブリ解決に問題があるため、
+      # CIではILRepackなしのビルドのみ行う（マージされていないDLLがそのまま出力される）
+      - name: Build plugin
+        run: dotnet build KK_CardCompression.Plugin/KK_CardCompression.Plugin.csproj -c Release /p:ILRepack=false
 
       # --- 結果確認 ---
 
