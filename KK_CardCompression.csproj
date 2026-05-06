@@ -10,6 +10,7 @@
     <ApplicationIcon>Assets\app-icon.ico</ApplicationIcon>
     <AssemblyName>KK_CardCompression</AssemblyName>
     <RootNamespace>KK_CardCompression</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
 
   <!-- Framework-dependent release configuration -->
@@ -24,6 +25,7 @@
   <ItemGroup>
     <PackageReference Include="LZMA-SDK" Version="19.0.0" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
   </ItemGroup>
 
   <ItemGroup>
