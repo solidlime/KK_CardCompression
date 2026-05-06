@@ -8,6 +8,9 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>Assets\app-icon.ico</ApplicationIcon>
+    <AssemblyName>KK_CardCompression</AssemblyName>
+    <RootNamespace>KK_CardCompression</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
 
   <!-- Framework-dependent release configuration -->
@@ -22,6 +25,7 @@
   <ItemGroup>
     <PackageReference Include="LZMA-SDK" Version="19.0.0" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
   </ItemGroup>
 
   <ItemGroup>
@@ -29,11 +33,22 @@
     <None Include="Assets\app-icon.ico"/>
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\kk_universal_dict.zstd" />
+  </ItemGroup>
+
   <!-- Syncthing / Synology conflict copies — exclude from compilation -->
   <ItemGroup>
     <Compile Remove="**\*.sync-conflict-*" />
     <Page    Remove="**\*.sync-conflict-*" />
     <None    Include="**\*.sync-conflict-*" />
+  </ItemGroup>
+
+  <!-- Test projects — exclude from compilation -->
+  <ItemGroup>
+    <Compile Remove="test\**" />
+    <None Remove="test\**" />
+    <EmbeddedResource Remove="test\**" />
   </ItemGroup>
 
 </Project>

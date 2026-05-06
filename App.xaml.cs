@@ -1,6 +1,6 @@
-﻿using System.Windows;
+using System.Windows;
 
-namespace KK_Archive;
+namespace KK_CardCompression;
 
 /// <summary>
 /// Interaction logic for App.xaml

@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace KK_Archive.Models
+namespace KK_CardCompression.Models
 {
     public class OutputFileEntry : FileEntry
     {

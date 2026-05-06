@@ -12,8 +12,8 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using KK_Archive.Models;
-using KK_Archive.Services;
+using KK_CardCompression.Models;
+using KK_CardCompression.Services;
 using DataFormats = System.Windows.DataFormats;
 using DataObject = System.Windows.DataObject;
 using DragDropEffects = System.Windows.DragDropEffects;
@@ -24,7 +24,7 @@ using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using ListView = System.Windows.Controls.ListView;
 using Point = System.Windows.Point;
 
-namespace KK_Archive
+namespace KK_CardCompression
 {
     public partial class MainWindow : Window
     {
@@ -50,6 +50,7 @@ namespace KK_Archive
             LvOutput.ItemsSource = _outputFiles;
 
             InitCompressionLevelCombo();
+            InitAlgorithmCombo();
             UpdateInputCount();
             UpdateOutputCount();
             LoadSettings();
@@ -57,13 +58,21 @@ namespace KK_Archive
 
         private void InitCompressionLevelCombo()
         {
-            CmbCompLevel.Items.Add(new CompressionOption("Fast（最速）",   CompressionLevel.Fast));
-            CmbCompLevel.Items.Add(new CompressionOption("Normal（バランス）",        CompressionLevel.Normal));
-            CmbCompLevel.Items.Add(new CompressionOption("Maximum（高圧縮）",         CompressionLevel.Maximum));
-            CmbCompLevel.Items.Add(new CompressionOption("Ultra（最高圧縮）",         CompressionLevel.Ultra));
+            CmbCompLevel.Items.Add(new CompressionOption("Fast（最速）", CompressionLevel.Fast));
+            CmbCompLevel.Items.Add(new CompressionOption("Maximum（高圧縮）", CompressionLevel.Maximum));
+            CmbCompLevel.Items.Add(new CompressionOption("Ultra（最高圧縮）", CompressionLevel.Ultra));
             CmbCompLevel.DisplayMemberPath  = "Label";
             CmbCompLevel.SelectedValuePath  = "Level";
             CmbCompLevel.SelectedValue      = CompressionLevel.Maximum;
+        }
+
+        private void InitAlgorithmCombo()
+        {
+            CmbAlgorithm.Items.Add(new AlgorithmOption("Zstd", CompressionAlgorithm.Zstd));
+            CmbAlgorithm.Items.Add(new AlgorithmOption("LZMA", CompressionAlgorithm.Lzma));
+            CmbAlgorithm.DisplayMemberPath = "Label";
+            CmbAlgorithm.SelectedValuePath = "Algorithm";
+            CmbAlgorithm.SelectedValue = CompressionAlgorithm.Zstd;
         }
 
         private void LoadSettings()
@@ -77,6 +86,7 @@ namespace KK_Archive
             }
 
             SelectCompressionLevel(settings.CompressionLevel);
+            SelectAlgorithm(settings.CompressionAlgorithm);
             ChkRecompressPng.IsChecked = settings.RecompressPng;
             _isPreviewEnabled = settings.PreviewEnabled;
             TglPreviewEnabled.IsChecked = _isPreviewEnabled;
@@ -98,23 +108,67 @@ namespace KK_Archive
             CmbCompLevel.SelectedValue = CompressionLevel.Maximum;
         }
 
+        private void SelectAlgorithm(CompressionAlgorithm algorithm)
+        {
+            foreach (var item in CmbAlgorithm.Items)
+            {
+                if (item is AlgorithmOption opt && opt.Algorithm == algorithm)
+                {
+                    CmbAlgorithm.SelectedItem = opt;
+                    return;
+                }
+            }
+            CmbAlgorithm.SelectedValue = CompressionAlgorithm.Zstd;
+        }
+
         private void SaveSettings()
         {
             if (!_isInitialized) return; // 初期化完了前は保存しない
             IniSettingsService.Save(new AppSettings
             {
-                LastOutputDirectory = _outputDirectory,
-                CompressionLevel    = GetSelectedCompressionLevel(),
-                RecompressPng       = ChkRecompressPng.IsChecked == true,
-                PreviewEnabled      = _isPreviewEnabled,
+                LastOutputDirectory  = _outputDirectory,
+                CompressionLevel     = GetSelectedCompressionLevel(),
+                CompressionAlgorithm = GetSelectedAlgorithm(),
+                RecompressPng        = ChkRecompressPng.IsChecked == true,
+                PreviewEnabled       = _isPreviewEnabled,
             });
         }
 
         private CompressionLevel GetSelectedCompressionLevel()
-            => CmbCompLevel?.SelectedValue is CompressionLevel l ? l : CompressionLevel.Maximum;
+            => CmbCompLevel?.SelectedValue is CompressionLevel l ? l : (CompressionLevel)ZstdLevel.Better;
 
         private void CmbCompLevel_SelectionChanged(object sender, SelectionChangedEventArgs e)
             => SaveSettings();
+
+        private CompressionAlgorithm GetSelectedAlgorithm()
+            => CmbAlgorithm?.SelectedValue is CompressionAlgorithm a ? a : CompressionAlgorithm.Zstd;
+
+        private void UpdateCompressionLevelItems()
+        {
+            var algorithm = GetSelectedAlgorithm();
+            CmbCompLevel.Items.Clear();
+
+            if (algorithm == CompressionAlgorithm.Zstd)
+            {
+                CmbCompLevel.Items.Add(new CompressionOption("Fast（最速）", (CompressionLevel)ZstdLevel.Fast));
+                CmbCompLevel.Items.Add(new CompressionOption("Better（推奨）", (CompressionLevel)ZstdLevel.Better));
+                CmbCompLevel.Items.Add(new CompressionOption("Best（高圧縮）", (CompressionLevel)ZstdLevel.Best));
+                CmbCompLevel.SelectedValue = (CompressionLevel)ZstdLevel.Better;
+            }
+            else // Lzma
+            {
+                CmbCompLevel.Items.Add(new CompressionOption("Fast（最速）", CompressionLevel.Fast));
+                CmbCompLevel.Items.Add(new CompressionOption("Maximum（推奨）", CompressionLevel.Maximum));
+                CmbCompLevel.Items.Add(new CompressionOption("Ultra（最高圧縮）", CompressionLevel.Ultra));
+                CmbCompLevel.SelectedValue = CompressionLevel.Maximum;
+            }
+        }
+
+        private void CmbAlgorithm_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            UpdateCompressionLevelItems();
+            SaveSettings();
+        }
 
         private void ChkRecompressPng_Changed(object sender, RoutedEventArgs e)
             => SaveSettings();
@@ -469,7 +523,6 @@ namespace KK_Archive
             _cts?.Cancel();
         }
 
-        private async void BtnAuto_Click(object sender, RoutedEventArgs e) => await ProcessFilesAsync(null);
         private async void BtnCompress_Click(object sender, RoutedEventArgs e) => await ProcessFilesAsync(true);
         private async void BtnDecompress_Click(object sender, RoutedEventArgs e) => await ProcessFilesAsync(false);
 
@@ -488,7 +541,6 @@ namespace KK_Archive
 
         private void SetProcessingState(bool processing)
         {
-            BtnAuto.IsEnabled = !processing;
             BtnCompress.IsEnabled = !processing;
             BtnDecompress.IsEnabled = !processing;
             BtnClear.IsEnabled = !processing;
@@ -522,70 +574,96 @@ namespace KK_Archive
             var token = _cts.Token;
 
             var files = _inputFiles.ToList();
+            int total = files.Count;
 
             // 処理開始前に UI スレッドで設定値を取得
+            var algorithm        = GetSelectedAlgorithm();
             var compressionLevel = GetSelectedCompressionLevel();
             bool recompressPng   = ChkRecompressPng.IsChecked == true;
 
-            int successCount = 0;
-            int failCount = 0;
-            int total = files.Count;
-
+            // 出力エントリと圧縮判定を先に全て作成（UIスレッド）
+            var entries = new OutputFileEntry[total];
+            var doCompressFlags = new bool[total];
             for (int i = 0; i < total; i++)
             {
-                if (token.IsCancellationRequested) break;
-
                 var source = files[i];
-                bool doCompress = compress ?? !CompressionService.IsCompressed(source.FullPath);
-
+                doCompressFlags[i] = compress ?? !CompressionService.IsCompressed(source.FullPath);
                 string relativePath = GetRelativePath(source.FullPath, files.Select(f => f.FullPath).ToList());
                 string outputPath = Path.Combine(_outputDirectory, relativePath);
+                entries[i] = new OutputFileEntry(outputPath, source.SizeBytes) { ProgressPercent = 0 };
+                _outputFiles.Add(entries[i]);
+            }
+            UpdateOutputCount();
 
-                var outEntry = new OutputFileEntry(outputPath, source.SizeBytes) { ProgressPercent = 0 };
-                _outputFiles.Add(outEntry);
-                UpdateOutputCount();
+            // 並列処理（コア数分のファイルを同時処理）
+            int maxConcurrency = Math.Max(1, Environment.ProcessorCount);
+            using var semaphore = new SemaphoreSlim(maxConcurrency, maxConcurrency);
+            var counters = new int[3]; // [0]=success, [1]=fail, [2]=completed
 
-                var progress = new Progress<double>(p =>
-                {
-                    outEntry.ProgressPercent = (int)Math.Round(p * 100.0);
-                });
-
-                ProcessResult result;
+            var tasks = files.Select(async (source, i) =>
+            {
+                await semaphore.WaitAsync(token);
                 try
                 {
-                    result = await Task.Run(
-                        () => ProcessSingleFile(source.FullPath, doCompress, compressionLevel, recompressPng, progress),
-                        token);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
+                    var progress = new Progress<double>(p =>
+                    {
+                        entries[i].ProgressPercent = (int)Math.Round(p * 100.0);
+                    });
 
-                if (result.Success)
-                {
-                    successCount++;
-                    outEntry.ProgressPercent = 100;
-                    outEntry.IsProcessingComplete = true;
-                    outEntry.RefreshComputed();
-                }
-                else
-                {
-                    failCount++;
-                    outEntry.ProgressPercent = 0;
-                    outEntry.IsProcessingComplete = false;
-                }
+                    ProcessResult result;
+                    try
+                    {
+                        result = await Task.Run(
+                            () => ProcessSingleFile(source.FullPath, doCompressFlags[i], algorithm, compressionLevel, recompressPng, progress),
+                            token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return;
+                    }
 
-                ProgressBar.Value = (i + 1) * 100.0 / total;
-                TxtStatus.Text = $"処理中... ({i + 1}/{total})";
+                    if (result.Success)
+                    {
+                        Interlocked.Increment(ref counters[0]);
+                        entries[i].ProgressPercent = 100;
+                        entries[i].IsProcessingComplete = true;
+                        await Dispatcher.InvokeAsync(() => entries[i].RefreshComputed());
+                    }
+                    else
+                    {
+                        Interlocked.Increment(ref counters[1]);
+                        entries[i].ProgressPercent = 0;
+                    }
+
+                    int done = Interlocked.Increment(ref counters[2]);
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        ProgressBar.Value = done * 100.0 / total;
+                        TxtStatus.Text = $"処理中... ({done}/{total})";
+                    });
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            }).ToArray();
+
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                // キャンセル済み
             }
 
             _stopwatch.Stop();
-            bool cancelled = token.IsCancellationRequested;
             SetProcessingState(false);
 
+            int successCount = counters[0];
+            int failCount = counters[1];
             UpdateStats(files, successCount, failCount);
-            TxtStatus.Text = cancelled
+            TxtStatus.Text = token.IsCancellationRequested
                 ? $"中止しました ({successCount}/{total} 完了)"
                 : $"処理完了 ({successCount}/{total} 成功)";
         }
@@ -593,6 +671,7 @@ namespace KK_Archive
         private record ProcessResult(bool Success, string? OutputPath, string? ErrorMessage = null);
 
         private ProcessResult ProcessSingleFile(string inputPath, bool compress,
+                                                 CompressionAlgorithm algorithm,
                                                  CompressionLevel compressionLevel, bool recompressPng,
                                                  IProgress<double> progress)
         {
@@ -610,7 +689,7 @@ namespace KK_Archive
                     Directory.CreateDirectory(outputDir);
 
                 if (compress)
-                    CompressionService.CompressFile(inputPath, outputPath, compressionLevel, recompressPng, progress);
+                    CompressionService.CompressFile(inputPath, outputPath, algorithm, compressionLevel, (ZstdLevel)compressionLevel, recompressPng, progress);
                 else
                     CompressionService.DecompressFile(inputPath, outputPath, progress);
 
@@ -630,9 +709,6 @@ namespace KK_Archive
                     File.Copy(backupPath, inputPath, true);
                     File.Delete(backupPath);
                 }
-
-                Dispatcher.Invoke(() =>
-                    MessageBox.Show($"処理失敗: {Path.GetFileName(inputPath)}\n{ex.Message}"));
 
                 return new ProcessResult(false, null, ex.Message);
             }
@@ -703,5 +779,6 @@ namespace KK_Archive
         }
 
         private sealed record CompressionOption(string Label, CompressionLevel Level);
+        private sealed record AlgorithmOption(string Label, CompressionAlgorithm Algorithm);
     }
 }

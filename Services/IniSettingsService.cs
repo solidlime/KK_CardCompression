@@ -2,12 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace KK_Archive.Services
+namespace KK_CardCompression.Services
 {
     public sealed class AppSettings
     {
         public string LastOutputDirectory { get; set; } = string.Empty;
         public CompressionLevel CompressionLevel { get; set; } = CompressionLevel.Maximum;
+        public CompressionAlgorithm CompressionAlgorithm { get; set; } = CompressionAlgorithm.Zstd;
         public bool RecompressPng { get; set; } = false;
         public bool PreviewEnabled { get; set; } = true;
     }
@@ -15,7 +16,7 @@ namespace KK_Archive.Services
     public static class IniSettingsService
     {
         private static readonly string s_iniPath =
-            Path.Combine(AppContext.BaseDirectory, "KK_Archive.ini");
+            Path.Combine(AppContext.BaseDirectory, "KK_CardCompression.ini");
 
         public static AppSettings Load()
         {
@@ -46,6 +47,10 @@ namespace KK_Archive.Services
                     && Enum.TryParse<CompressionLevel>(lvl, ignoreCase: true, out var cl))
                     settings.CompressionLevel = cl;
 
+                if (map.TryGetValue("CompressionAlgorithm", out var algo)
+                    && Enum.TryParse<CompressionAlgorithm>(algo, ignoreCase: true, out var ca))
+                    settings.CompressionAlgorithm = ca;
+
                 if (map.TryGetValue("RecompressPng", out var rpng)
                     && bool.TryParse(rpng, out var rp))
                     settings.RecompressPng = rp;
@@ -69,6 +74,7 @@ namespace KK_Archive.Services
                 "[Settings]",
                 $"LastOutputDirectory={settings.LastOutputDirectory}",
                 $"CompressionLevel={settings.CompressionLevel}",
+                $"CompressionAlgorithm={settings.CompressionAlgorithm}",
                 $"RecompressPng={settings.RecompressPng}",
                 $"PreviewEnabled={settings.PreviewEnabled}",
                 string.Empty,
