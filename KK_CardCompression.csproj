@@ -33,6 +33,10 @@
     <None Include="Assets\app-icon.ico"/>
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\kk_universal_dict.zstd" />
+  </ItemGroup>
+
   <!-- Syncthing / Synology conflict copies — exclude from compilation -->
   <ItemGroup>
     <Compile Remove="**\*.sync-conflict-*" />
