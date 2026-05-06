@@ -306,8 +306,14 @@
 
                 <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3"
                             Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
-                    <TextBlock Text="圧縮レベル:" VerticalAlignment="Center" FontSize="11"
+                    <TextBlock Text="アルゴリズム:" VerticalAlignment="Center" FontSize="11"
                                Foreground="{StaticResource TextMuted}" Margin="0,0,6,0"/>
+                    <ComboBox x:Name="CmbAlgorithm" Width="80" Height="28" FontSize="12"
+                              VerticalContentAlignment="Center" Padding="6,0"
+                              BorderBrush="{StaticResource BorderSoft}"
+                              SelectionChanged="CmbAlgorithm_SelectionChanged"/>
+                    <TextBlock Text="圧縮レベル:" VerticalAlignment="Center" FontSize="11"
+                               Foreground="{StaticResource TextMuted}" Margin="12,0,6,0"/>
                     <ComboBox x:Name="CmbCompLevel" Width="160" Height="28" FontSize="12"
                               VerticalContentAlignment="Center" Padding="6,0"
                               BorderBrush="{StaticResource BorderSoft}"
