@@ -2,11 +2,12 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <!--
     ILRepack: ZstdSharp + System.*.dlls をプラグインDLLにマージする
+    BepInEx・ゲームアセンブリはマージせず、参照解決のみに使用
     
-    戦略:
-    1. dotnet publish で全参照DLLを出力ディレクトリに集める
-    2. ILRepack で ZstdSharp + System.* をマージ
-    3. マージ対象外の参照DLL（BepInEx, game assemblies等）を削除
+    NuGetPackageRoot はプラットフォーム固有:
+    - Windows: C:\Users\{user}\.nuget\packages\
+    - Linux/macOS: ~/.nuget/packages/
+    - GitHub Actions: C:\Users\runneradmin\.nuget\packages\ (Windows)
   -->
   <Target Name="ILRepacker" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
     <ItemGroup>
@@ -41,8 +42,7 @@
 
     <Message Importance="high" Text="ILRepack: Merging @(InputAssemblies->Count()) assemblies into $(OutputPath)$(AssemblyName).dll" />
     <Message Importance="high" Text="ILRepack: NuGetPackageRoot = $(NuGetPackageRoot)" />
-    <Message Importance="high" Text="ILRepack: Library paths:" />
-    <Message Importance="high" Text="  %(ILRepackLibPaths.Identity)" />
+    <Message Importance="high" Text="ILRepack: Library paths: @(ILRepackLibPaths)" />
 
     <ILRepack
       Parallel="true"
