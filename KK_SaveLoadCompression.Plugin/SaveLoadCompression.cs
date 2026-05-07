@@ -250,11 +250,6 @@ namespace SaveLoadCompression
         #endregion
 
         #region Load
-        //CheckData
-        [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(ChaFile), "CheckData", new Type[] { typeof(string) })]
-        public static void CheckDataPrefix(ref string path)
-            => Load(ref path, Token.CharaToken);
-
         //Studio Load
         [HarmonyPriority(Priority.First)]
         public static void LoadPrefix(ref string _path)
