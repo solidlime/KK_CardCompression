@@ -20,12 +20,12 @@ using PngCompression;
 namespace SaveLoadCompression
 {
     [BepInProcess("CharaStudio")]
-    [BepInProcess("KoikatsuSunshine")]
+    [BepInProcess("Koikatu")]
     [BepInPlugin(GUID, PLUGIN_NAME, PLUGIN_VERSION)]
     public class SaveLoadCompression : BaseUnityPlugin
     {
         internal const string PLUGIN_NAME = "Save Load Compression";
-        internal const string GUID = "com.jim60105.kks.saveloadcompression";
+        internal const string GUID = "com.jim60105.kk.saveloadcompression";
         internal const string PLUGIN_VERSION = "21.12.23.0";
         internal const string PLUGIN_RELEASE_VERSION = "1.4.0";
         public static ConfigEntry<DictionarySize> DictionarySize { get; private set; }
@@ -250,6 +250,11 @@ namespace SaveLoadCompression
         #endregion
 
         #region Load
+        //CheckData
+        [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(ChaFile), "CheckData", new Type[] { typeof(string) })]
+        public static void CheckDataPrefix(ref string path)
+            => Load(ref path, Token.CharaToken);
+
         //Studio Load
         [HarmonyPriority(Priority.First)]
         public static void LoadPrefix(ref string _path)
@@ -333,7 +338,7 @@ namespace SaveLoadCompression
         internal static byte[] MakeWatermarkPic(byte[] pngData, string token, bool zip)
         {
             Texture2D png = new Texture2D(1, 1);
-            _ = ImageConversion.LoadImage(png, pngData);
+            png.LoadImage(pngData);
 
             Texture2D watermark;
             if (zip)

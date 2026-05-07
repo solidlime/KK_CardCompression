@@ -23,7 +23,7 @@ namespace Extension
             {
                 FileData = File.ReadAllBytes(FilePath);
                 Texture2D texture = new Texture2D(2, 2, TextureFormat.ARGB32, false);
-                if (ImageConversion.LoadImage(texture, FileData))
+                if (texture.LoadImage(FileData))
                 {
                     if ((width > 0 && texture.width != width) || (height > 0 && texture.height != height))
                     {
