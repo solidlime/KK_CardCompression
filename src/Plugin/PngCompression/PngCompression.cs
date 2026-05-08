@@ -237,6 +237,10 @@ namespace KK_CardCompression.PngCompression
                     return Token.CoordinateToken;
                 }
             }
+            catch
+            {
+                return null;
+            }
             finally
             {
                 binaryReader.BaseStream.Seek(position, SeekOrigin.Begin);
@@ -259,9 +263,14 @@ namespace KK_CardCompression.PngCompression
                     default:
                         binaryReader.BaseStream.Seek(position, SeekOrigin.Begin);
                         string st = binaryReader.ReadString();
-                        Version version = new Version(st);
-                        return version.Major == 101;
+                        if (Version.TryParse(st, out Version version))
+                            return version.Major == 101;
+                        return false;
                 }
+            }
+            catch
+            {
+                return false;
             }
             finally
             {
