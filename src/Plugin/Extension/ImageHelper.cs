@@ -98,8 +98,15 @@ namespace KK_CardCompression.Extension
         {
             if (br == null) throw new ArgumentNullException(nameof(br));
             long pngSize = GetPngSize(br);
-            if (pngSize == 0) throw new InvalidOperationException("Failed to read PNG data from stream (invalid or missing PNG signature/chunks).");
+            if (pngSize == 0) return null;
             return br.ReadBytes((int)pngSize);
+        }
+
+        /// <summary>Load PNG bytes from a file, returning null if the file is locked or incomplete.</summary>
+        public static byte[] LoadPngBytesSafe(string path)
+        {
+            try { return LoadPngBytes(path); }
+            catch { return null; }
         }
     }
 }
