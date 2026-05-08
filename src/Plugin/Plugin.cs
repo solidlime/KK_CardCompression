@@ -66,14 +66,14 @@ namespace KK_CardCompression
 
             CleanCacheFolder();
 
-            Enable = Config.Bind<bool>("Config", "Enable", false, "Enable compression on save. Requires restart or re-enable.");
+            Enable = Config.Bind<bool>("Config", "Enable", true, "Enable compression on save. Requires restart or re-enable.");
 
             DeleteOriginalFile = Config.Bind<bool>("Settings", "Delete the original file", true, "The original saved file will be automatically overwritten.");
-            DisplayMessage = Config.Bind<bool>("Settings", "Display compression message on screen", false);
+            DisplayMessage = Config.Bind<bool>("Settings", "Display compression message on screen", true);
             SkipSaveCheck = Config.Bind<bool>("Settings", "Skip bytes compare when saving", false, "!!!Use this at your own risk!!!!");
+            EnableOnCharaSaving = Config.Bind<bool>("Enable at Where", "Character", true, "Enable compress when saving characters.");
 
-            EnableOnCharaSaving = Config.Bind<bool>("Enable at Where", "Character", false, "Enable compress when saving characters.");
-            EnableOnCoordinateSaving = Config.Bind<bool>("Enable at Where", "Coordinate", false, "Enable compress when saving coordinates.");
+            EnableOnCoordinateSaving = Config.Bind<bool>("Enable at Where", "Coordinate", true, "Enable compress when saving coordinates.");
             EnableOnStudioSceneSaving = Config.Bind<bool>("Enable at Where", "Studio Scene", true, "Enable compress when saving scenes.");
 
             // Harmony 2.x compatible: use named parameters for Patch()

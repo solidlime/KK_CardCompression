@@ -73,7 +73,7 @@ namespace KK_CardCompression.PngCompression
                             binaryWriter.Write(101);
                             break;
                         }
-                        throw new InvalidDataException("PNG token does not match compression marker.");
+                        throw new IOException("PNG token does not match compression marker.");
                 }
 
                 binaryWriter.Write(token);
