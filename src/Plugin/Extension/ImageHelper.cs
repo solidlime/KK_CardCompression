@@ -83,7 +83,7 @@ namespace KK_CardCompression.Extension
         public static byte[] LoadPngBytes(string path)
         {
             if (path == null) throw new ArgumentNullException(nameof(path));
-            using (FileStream st = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (FileStream st = new FileStream(path, FileMode.Open, FileAccess.Read))
                 return LoadPngBytes(st);
         }
 
@@ -100,13 +100,6 @@ namespace KK_CardCompression.Extension
             long pngSize = GetPngSize(br);
             if (pngSize == 0) return null;
             return br.ReadBytes((int)pngSize);
-        }
-
-        /// <summary>Load PNG bytes from a file, returning null if the file is locked or incomplete.</summary>
-        public static byte[] LoadPngBytesSafe(string path)
-        {
-            try { return LoadPngBytes(path); }
-            catch { return null; }
         }
     }
 }
