@@ -6,6 +6,7 @@
 
 using System;
 using System.IO;
+using System.Reflection;
 using System.Threading;
 using BepInEx;
 using BepInEx.Configuration;
@@ -40,6 +41,25 @@ namespace SaveLoadCompression
 
         internal static new ManualLogSource Logger;
         internal static DirectoryInfo CacheDirectory;
+
+        // Load embedded SevenZip.dll at startup (single-file DLL, no external deps)
+        static SaveLoadCompression()
+        {
+            AppDomain.CurrentDomain.AssemblyResolve += (sender, args) =>
+            {
+                var name = new AssemblyName(args.Name);
+                if (name.Name != "SevenZip") return null;
+                using (var stream = Assembly.GetExecutingAssembly()
+                    .GetManifestResourceStream("SaveLoadCompression.Embedded.SevenZip.dll"))
+                {
+                    if (stream == null) return null;
+                    var data = new byte[stream.Length];
+                    stream.Read(data, 0, data.Length);
+                    return Assembly.Load(data);
+                }
+            };
+        }
+
         public void Awake()
         {
             Logger = base.Logger;

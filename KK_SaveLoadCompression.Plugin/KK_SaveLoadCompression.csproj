@@ -19,10 +19,12 @@
   <ItemGroup>
     <EmbeddedResource Include="Resources\zip_watermark.png" />
     <EmbeddedResource Include="Resources\unzip_watermark.png" />
+    <EmbeddedResource Include="Embedded\SevenZip.dll" />
   </ItemGroup>
 
-  <!-- Copy SevenZip.dll (LZMA-SDK) to output for BepInEx plugin deployment -->
-  <Target Name="CopySevenZip" AfterTargets="Build">
-    <Copy SourceFiles="$(NuGetPackageRoot)lzma-sdk\19.0.0\lib\net20\SevenZip.dll" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
+  <!-- Copy SevenZip.dll from NuGet to Embedded/ for resource embedding -->
+  <Target Name="CopySevenZipForEmbed" BeforeTargets="BeforeBuild">
+    <MakeDir Directories="$(MSBuildProjectDirectory)\Embedded" />
+    <Copy SourceFiles="$(NuGetPackageRoot)lzma-sdk\19.0.0\lib\net20\SevenZip.dll" DestinationFolder="$(MSBuildProjectDirectory)\Embedded" SkipUnchangedFiles="true" />
   </Target>
 </Project>
