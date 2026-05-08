@@ -45,7 +45,8 @@ namespace KK_CardCompression.Extension
                 }
 
                 bool flag = true;
-                while (flag)
+                int chunkCount = 0;
+                while (flag && chunkCount++ < 1000)
                 {
                     byte[] widthBytes = new byte[4];
                     st.Read(widthBytes, 0, 4);
@@ -54,13 +55,17 @@ namespace KK_CardCompression.Extension
                     byte[] heightBytes = new byte[4];
                     st.Read(heightBytes, 0, 4);
                     int chunkType = BitConverter.ToInt32(heightBytes, 0);
+                    string typeStr = System.Text.Encoding.ASCII.GetString(heightBytes);
+                    Logger.LogDebug($"  chunk[{chunkCount}]: type={typeStr}(0x{chunkType:X8}) len={chunkLength} pos={st.Position - 8}");
                     if (chunkType == IEND_MAGIC) flag = false;
                     if (chunkLength + 4 > st.Length - st.Position)
                     {
                         st.Seek(position, SeekOrigin.Begin);
-                        Logger.LogDebug($"GetPngSize: overflow chunkType=0x{chunkType:X8} chunkLen={chunkLength} remaining={st.Length - st.Position}");
+                        Logger.LogDebug($"GetPngSize: overflow chunkType=0x{chunkType:X8}({typeStr}) chunkLen={chunkLength} remaining={st.Length - st.Position}");
                         return 0L;
                     }
+                    st.Seek(chunkLength + 4, SeekOrigin.Current);
+                }
                     st.Seek(chunkLength + 4, SeekOrigin.Current);
                     if (chunkType == IEND_MAGIC) Logger.LogDebug($"GetPngSize: found IEND at pos={st.Position}");
                 }
