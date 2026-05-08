@@ -118,7 +118,7 @@ namespace SaveLoadCompression
         public static void SaveCharaFilePostfix(ChaFileControl __instance, string filename, byte sex)
         {
             if(SaveLoadCompression.EnableOnCharaSaveing.Value)
-                Save(__instance.ConvertCharaFilePath(filename, sex), Token.CharaToken + "】" + Token.SexToken + sex);
+                Save(filename, Token.CharaToken + "】" + Token.SexToken + sex);
         }
 
         //Coordinate Save
@@ -250,11 +250,6 @@ namespace SaveLoadCompression
         #endregion
 
         #region Load
-        //CheckData
-        [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(ChaFile), "CheckData", new Type[] { typeof(string) })]
-        public static void CheckDataPrefix(ref string path)
-            => Load(ref path, Token.CharaToken);
-
         //Studio Load
         [HarmonyPriority(Priority.First)]
         public static void LoadPrefix(ref string _path)
@@ -273,14 +268,9 @@ namespace SaveLoadCompression
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(ChaFileControl), "LoadCharaFile", new Type[] { typeof(string), typeof(byte), typeof(bool), typeof(bool) })]
         public static void LoadCharaFilePrefix(ChaFileControl __instance, ref string filename, byte sex)
         {
-            filename = __instance.ConvertCharaFilePath(filename, sex);
+            filename = __instance.ConvertCharaFilePath(filename, sex, true);
             Load(ref filename, Token.CharaToken);
         }
-
-        //KoikatsuConvertToSunshine
-        [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(ChaFileControl), "LoadCharaFileKoikatsu", new Type[] { typeof(string), typeof(byte), typeof(bool), typeof(bool) })]
-        public static void LoadCharaFileKoikatsuPrefix(ref string filename)
-            => Load(ref filename, Token.CharaToken);
 
         //Coordinate Load
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(ChaFileCoordinate), "LoadFile", new Type[] { typeof(string) })]
