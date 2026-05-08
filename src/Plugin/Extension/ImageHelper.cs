@@ -26,12 +26,20 @@ namespace KK_CardCompression.Extension
             {
                 byte[] pngSignature = new byte[8];
                 byte[] ihdrData = new byte[8] { 137, 80, 78, 71, 13, 10, 26, 10 };
-                st.Read(pngSignature, 0, 8);
+                int read = st.Read(pngSignature, 0, 8);
+                Logger.LogDebug($"GetPngSize: read={read} sig={BitConverter.ToString(pngSignature)} len={st.Length} pos={position}");
+                if (read < 8)
+                {
+                    st.Seek(position, SeekOrigin.Begin);
+                    Logger.LogDebug("GetPngSize: short read (<8 bytes)");
+                    return 0L;
+                }
                 for (int i = 0; i < 8; i++)
                 {
                     if (pngSignature[i] != ihdrData[i])
                     {
                         st.Seek(position, SeekOrigin.Begin);
+                        Logger.LogDebug($"GetPngSize: sig mismatch at byte {i}");
                         return 0L;
                     }
                 }
@@ -50,18 +58,22 @@ namespace KK_CardCompression.Extension
                     if (chunkLength + 4 > st.Length - st.Position)
                     {
                         st.Seek(position, SeekOrigin.Begin);
+                        Logger.LogDebug($"GetPngSize: overflow chunkType=0x{chunkType:X8} chunkLen={chunkLength} remaining={st.Length - st.Position}");
                         return 0L;
                     }
                     st.Seek(chunkLength + 4, SeekOrigin.Current);
+                    if (chunkType == IEND_MAGIC) Logger.LogDebug($"GetPngSize: found IEND at pos={st.Position}");
                 }
 
                 long num = st.Position - position;
                 st.Seek(position, SeekOrigin.Begin);
+                Logger.LogDebug($"GetPngSize: success, size={num}");
                 return num;
             }
-            catch (EndOfStreamException)
+            catch (EndOfStreamException e)
             {
                 st.Seek(position, SeekOrigin.Begin);
+                Logger.LogDebug($"GetPngSize: EndOfStreamException at pos={st.Position}: {e.Message}");
                 return 0L;
             }
         }
