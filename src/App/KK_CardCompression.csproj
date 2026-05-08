@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>..\..\Assets\app-icon.ico</ApplicationIcon>
-    <AssemblyName>KK_CardCompression</AssemblyName>
+    <AssemblyName>KKCC</AssemblyName>
     <RootNamespace>KK_CardCompression</RootNamespace>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <Version>1.0.0</Version>
