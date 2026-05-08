@@ -7,7 +7,6 @@ namespace KK_CardCompression.Services
     public sealed class AppSettings
     {
         public string LastOutputDirectory { get; set; } = string.Empty;
-        public CompressionLevel CompressionLevel { get; set; } = CompressionLevel.Maximum;
         public bool PreviewEnabled { get; set; } = true;
     }
 
@@ -41,16 +40,13 @@ namespace KK_CardCompression.Services
                 if (map.TryGetValue("LastOutputDirectory", out var output))
                     settings.LastOutputDirectory = output;
 
-                if (map.TryGetValue("CompressionLevel", out var lvl)
-                    && Enum.TryParse<CompressionLevel>(lvl, ignoreCase: true, out var cl))
-                    settings.CompressionLevel = cl;
-
                 if (map.TryGetValue("PreviewEnabled", out var prev)
                     && bool.TryParse(prev, out var pe))
                     settings.PreviewEnabled = pe;
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"[WARNING] Failed to load INI settings, using defaults: {ex.Message}");
                 return new AppSettings();
             }
 
@@ -59,11 +55,11 @@ namespace KK_CardCompression.Services
 
         public static void Save(AppSettings settings)
         {
+            if (settings == null) throw new ArgumentNullException(nameof(settings));
             var content = string.Join(Environment.NewLine, new[]
             {
                 "[Settings]",
                 $"LastOutputDirectory={settings.LastOutputDirectory}",
-                $"CompressionLevel={settings.CompressionLevel}",
                 $"PreviewEnabled={settings.PreviewEnabled}",
                 string.Empty,
             });

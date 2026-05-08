@@ -24,35 +24,50 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Build
-        run: dotnet build KK_CardCompression.csproj -c Release
+      - name: Add NuGet source
+        run: dotnet nuget add source https://nuget.bepinex.dev/v3/index.json -n BepInEx
 
-      - name: Publish (single-file)
+      - name: Build Plugin (net48)
+        run: dotnet build src/Plugin/KK_CardCompression.csproj -c Release
+
+      - name: Build Desktop App
+        run: dotnet build src/App/KK_CardCompression.csproj -c Release
+
+      - name: Publish Desktop App (single-file)
         run: |
-          dotnet publish KK_CardCompression.csproj -c Release `
+          dotnet publish src/App/KK_CardCompression.csproj -c Release `
             --self-contained false `
             -p:PublishSingleFile=true `
             -p:IncludeNativeLibrariesForSelfExtract=true `
             -o publish-desktop/
 
-      - name: Verify output
+      - name: Verify outputs
         shell: pwsh
         run: |
           $exe = "publish-desktop/KK_CardCompression.exe"
+          $dll = "src/Plugin/bin/Release/KK_CardCompression.dll"
           if (-not (Test-Path $exe)) {
             Write-Host "::error::Desktop EXE not found: $exe"
             exit 1
           }
+          if (-not (Test-Path $dll)) {
+            Write-Host "::error::Plugin DLL not found: $dll"
+            exit 1
+          }
           $exeSize = [math]::Round((Get-Item $exe).Length / 1MB, 2)
+          $dllSize = [math]::Round((Get-Item $dll).Length / 1KB, 0)
           echo "## Build Results" >> $env:GITHUB_STEP_SUMMARY
           echo "" >> $env:GITHUB_STEP_SUMMARY
           echo "| Artifact | Size |" >> $env:GITHUB_STEP_SUMMARY
           echo "|----------|------|" >> $env:GITHUB_STEP_SUMMARY
           echo "| KK_CardCompression.exe | ${exeSize} MB |" >> $env:GITHUB_STEP_SUMMARY
+          echo "| KK_CardCompression.dll | ${dllSize} KB |" >> $env:GITHUB_STEP_SUMMARY
 
-      - name: Upload artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: KKCC-desktop
-          path: publish-desktop/KK_CardCompression.exe
+          name: KKCC-all
+          path: |
+            publish-desktop/KK_CardCompression.exe
+            src/Plugin/bin/Release/KK_CardCompression.dll
           retention-days: 7

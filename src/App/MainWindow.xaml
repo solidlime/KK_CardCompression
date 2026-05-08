@@ -146,7 +146,6 @@
             </Setter>
         </Style>
 
-
     </Window.Resources>
 
     <Grid Margin="12">
@@ -302,15 +301,6 @@
                 <Border Grid.Row="1" Grid.ColumnSpan="3" Height="1" Margin="0,8,0,0"
                         Background="{StaticResource BorderSoft}"/>
 
-                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
-                            Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
-                    <TextBlock Text="圧縮レベル:" VerticalAlignment="Center" FontSize="11"
-                               Foreground="{StaticResource TextMuted}" Margin="0,0,6,0"/>
-                    <ComboBox x:Name="CmbCompLevel" Width="160" Height="28" FontSize="12"
-                              VerticalContentAlignment="Center" Padding="6,0"
-                              BorderBrush="{StaticResource BorderSoft}"
-                              SelectionChanged="CmbCompLevel_SelectionChanged"/>
-                </StackPanel>
             </Grid>
         </Border>
 

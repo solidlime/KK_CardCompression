@@ -4,7 +4,7 @@ test/
 # ビルド成果物
 bin/
 obj/
-KK_SaveLoadCompression.Plugin/Embedded/
+src/Plugin/Embedded/
 
 # Visual Studio 関連
 .vs/

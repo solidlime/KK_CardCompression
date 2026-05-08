@@ -6,22 +6,16 @@ namespace KK_CardCompression.Models
 {
     public class FileEntry : INotifyPropertyChanged
     {
-        private string _fullPath;
-
         public FileEntry(string fullPath)
         {
-            _fullPath = fullPath;
+            FullPath = fullPath;
         }
 
-        public string FullPath
-        {
-            get => _fullPath;
-            set { _fullPath = value; OnPropertyChanged(); OnPropertyChanged(nameof(FileName)); OnPropertyChanged(nameof(FolderPath)); OnPropertyChanged(nameof(SizeFormatted)); }
-        }
+        public string FullPath { get; }
 
-        public string FileName    => Path.GetFileName(_fullPath);
-        public string FolderPath  => Path.GetDirectoryName(_fullPath) ?? "";
-        public long   SizeBytes   => File.Exists(_fullPath) ? new FileInfo(_fullPath).Length : 0;
+        public string FileName    => Path.GetFileName(FullPath);
+        public string FolderPath  => Path.GetDirectoryName(FullPath) ?? "";
+        public long   SizeBytes   => File.Exists(FullPath) ? new FileInfo(FullPath).Length : 0;
         public string SizeFormatted => FormatSize(SizeBytes);
 
         public event PropertyChangedEventHandler? PropertyChanged;

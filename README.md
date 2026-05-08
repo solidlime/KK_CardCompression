@@ -1,262 +1,127 @@
-# KK_CardCompression
+# KK Card Compression
 
-Koikatsu カード・シーン PNG ファイルのロスレス圧縮／解凍デスクトップツール。
+Koikatsu / Koikatsu Party のカード・シーン PNG ファイルを LZMA でロスレス圧縮／解凍するツール群。
 
-**Zstd** と **LZMA** の2種類の圧縮アルゴリズムに対応。Zstd は LZMA 比で解凍 10〜30倍高速。PNG 再圧縮オプションでシーンファイルのさらなる削減が可能。全コアを使った並列処理で、ドラッグ＆ドロップだけでバッチ圧縮が完結する。
+## 概要
 
----
+| コンポーネント | 形式 | 用途 |
+|----------------|------|------|
+| **KK_CardCompression.dll** | BepInEx プラグイン | ゲーム内でセーブ時に自動圧縮、ロード時に自動解凍 |
+| **KK_CardCompression.exe** | WPF デスクトップアプリ | ファイルをドラッグ＆ドロップでバッチ圧縮／解凍 |
 
-## 目次
+**圧縮形式**: PNG の tEXt チャンク（`[KK]` マーカー）内のゲームデータを LZMA 圧縮。元の PNG 画像部分はそのまま保持するため、エクスプローラのサムネイル表示には影響しない。
 
-- [特徴](#特徴)
-- [圧縮フォーマット](#圧縮フォーマット)
-- [圧縮レベル](#圧縮レベル)
-- [ベンチマーク](#ベンチマーク)
-- [使い方](#使い方)
-- [プラグイン互換性](#プラグイン互換性)
-- [要件](#要件)
-- [ビルド](#ビルド)
-- [ライセンス](#ライセンス)
+| マーカー | 状態 |
+|----------|------|
+| `100` | 未圧縮（バニラ） |
+| `101` | LZMA 圧縮（本ツール / KK_SaveLoadCompression 互換） |
 
----
+- キャラカードで約 **60-70%** 削減（例: 6 MB → 2 MB）
+- シーンファイルで約 **40-50%** 削減
+- バイト単位で完全復元（ロスレス）
 
-## 特徴
-
-- **2種類の圧縮アルゴリズム** — Zstd（高速・推奨）と LZMA（後方互換）
-- **Zstd 圧縮は LZMA 比で解凍 10〜30倍高速** — ゲームロードへの影響は実質ゼロ
-- **PNG 再圧縮** — シーンファイル内の埋め込み PNG を最適化再エンコードし、追加 10〜12% 削減
-- **辞書圧縮** — シーンファイルに Zstd 学習済み辞書を使用し、より高い圧縮率を実現
-- **並列処理** — 全 CPU コアを使って複数ファイルを同時処理
-- **ドラッグ＆ドロップ UI** — ファイルやフォルダをドロップするだけ。フォルダの場合はサブフォルダも再帰検索
-- **リアルタイム進捗** — ファイルごとの進捗バーと全体の進捗バーを表示
-- **マウスオーバープレビュー** — カーサルホバーで PNG サムネイルを即座にプレビュー
-- **設定保存** — 出力ディレクトリ、アルゴリズム、レベル、PNG 再圧縮の設定を INI ファイルで永続化
-- **完全なロスレス性** — 解凍後は元のファイルフォーマットを**バイト単位で完全復元**。vanilla Koikatsu でそのまま読み込める
-
----
-
-## 圧縮フォーマット
-
-Koikatsu カード PNG は、画像データ以降にゲームデータが付加された構造を持つ。本ツールはゲームデータ部分を圧縮し、以下のマーカーで方式を識別する。
-
-| マーカー | 方式 | 説明 |
-|----------|------|------|
-| `100` | **未圧縮** | オリジナル形式（vanilla） |
-| `101` | **LZMA** | KK_SaveLoadCompression.dll 互換 |
-| `102` | **Zstd（辞書なし）** | キャラ・衣装ファイル用 |
-| `103` | **Zstd（辞書あり）** | シーンファイル用 |
-
-シーンファイル（`【KStudio】`トークン）ではマーカーが Version 文字列形式（例: `"103.0.0.0"`）となる。キャラ・衣装ファイルでは int32 形式。
-
-### データ構造
-
-```
-[圧縮時]
-PNG画像データ | 圧縮マーカー | トークン | 圧縮されたゲームデータ
-
-[未圧縮（vanilla）]
-PNG画像データ | マーカー(100) | トークン | ゲームデータ（生）
-```
-
-PNG画像部分は圧縮対象外。ゲームデータ部分（トークン＋ペイロード）のみを圧縮する。
-
----
-
-## 圧縮レベル
-
-### LZMA（後方互換用）
-
-LZMA の辞書サイズは KK_SaveLoadCompression.dll と同一の 64 MiB に固定。`numFastBytes` のみ変更するため、デコーダー互換性は完全に維持される。
-
-| レベル | ラベル | numFastBytes | 特徴 |
-|--------|--------|-------------|------|
-| Fast | **最速** | 5 | 最速の圧縮速度。圧縮率はやや低め |
-| Maximum | **推奨** | 128 | 速度と圧縮率のバランス |
-| Ultra | **最高圧縮** | 273 | 最も高い圧縮率だが非常に遅い |
-
-### Zstd（推奨）
-
-| レベル | ラベル | Zstd Level | 特徴 |
-|--------|--------|-----------|------|
-| Fast | **最速** | 3 | 最速の圧縮速度 |
-| Better | **推奨** | 14 | 速度と圧縮率の最適バランス（デフォルト） |
-| Best | **高圧縮** | 19 | 最高圧縮率。速度は低下するが解凍は常に高速 |
-
----
-
-## ベンチマーク
-
-実際の Koikatsu カードファイルでの測定結果。
-
-### キャラファイル（キャラ）
-
-キャラファイルは PNG テクスチャデータが 94〜97% を占めるため、エントロピーが約 7.95 bits/byte に達し、圧縮率には限界がある。
-
-| ファイル | 元サイズ | LZMA-Max | Zstd-Better | Zstd-Best |
-|----------|---------|----------|-------------|-----------|
-| `2022_1118_1852_48_690_0001.png` | 6.6 MB | 94.0% (2.4s) | 94.3% (0.9s) | 93.7% (1.9s) |
-| `re 胡桃 宿雪桃红.png` | 9.2 MB | 95.8% (2.8s) | 96.7% (0.5s) | 95.8% (2.8s) |
-
-### シーンファイル（シーン）
-
-シーンファイルはゲームデータの比率が高く、PNG 再圧縮との組み合わせで大幅な削減が可能。
-
-| ファイル | 元サイズ | LZMA-Max | Zstd-Better | Zstd-Best | Zstd-Dict+PNG |
-|----------|---------|----------|-------------|-----------|--------------|
-| `87037506_p0.png` | 5.6 MB | 76.9% (1.8s) | 78.4% (1.2s) | 77.9% (1.3s) | 77.7% (2.5s) |
-| `2023_0623_09_452.png` | 5.7 MB | 49.7% (1.8s) | 52.0% (0.8s) | 51.8% (0.9s) | 41.6% (1.1s) |
-
-### 解凍速度
-
-解凍はゲームのロードプロセスから見て実質瞬時。
-
-| ファイルサイズ | Zstd 圧縮 | Zstd 解凍 | 速度比 |
-|---------------|----------|----------|--------|
-| 58 MB | 4.4s | 0.028s | **160倍** 高速 |
-| 281 MB | 12.2s | 0.13s | **94倍** 高速 |
-
----
-
-## 使い方
-
-### 基本操作
-
-1. **ファイルを追加** — ウィンドウに PNG ファイルまたはフォルダをドラッグ＆ドロップ。フォルダの場合はサブフォルダ内の PNG も再帰的に追加される
-2. **出力先を設定** — 「出力先設定」ボタンで出力フォルダを選択
-3. **アルゴリズムとレベルを選択** — Zstd（推奨）または LZMA を選択し、圧縮レベルを指定
-4. **PNG 再圧縮（オプション）** — チェックを入れると、埋め込み PNG を最適化再エンコードして追加のサイズ削減を図る（シーンファイルに効果的）
-5. **実行** — 以下のいずれかのボタンで処理開始:
-   - **圧縮** — 全ファイルを圧縮
-   - **解凍** — 全ファイルを解凍（元の形式に完全復元、vanilla Koikatsu で読み込み可能）
-
-### ファイルリスト操作
-
-- **Delete キー** — 選択中の入力ファイルをリストから削除
-- **ダブルクリック** — ファイルをエクスプローラーで開く
-- **ドラッグ** — 入力リストからエクスプローラーへファイルをドラッグ可能
-- **プレビューの切替** — 右上のトグルスイッチでマウスオーバープレビューの ON/OFF
-
-### 圧縮率の限界について
-
-Koikatsu の PNG ファイルはテクスチャデータが大部分を占め、そのエントロピーは 7.95〜7.99 bits/byte（ほぼランダムデータ）に達する。そのため、汎用圧縮アルゴリズムだけでは **5〜10% 程度の削減**が限界となる。
-
-PNG 再圧縮オプションを有効にすると、ゲームが生成した最適化されていない PNG を再エンコードすることで、シーンファイルでは **10〜40% の追加削減**が可能。ただし、既に最適化されている PNG には効果が薄い（0.7% 程度）。
-
----
-
-## ファイルリスト操作
-
-| 状態 | 必要なプラグイン |
-|------|----------------|
-| Zstd 圧縮ファイル（マーカー 102/103）を読み込む | **KK_CardCompression.dll** |
-| LZMA 圧縮ファイル（マーカー 101）を読み込む | **KK_SaveLoadCompression.dll** |
-| **解凍後のファイル**を読み込む | **プラグイン不要**（vanilla Koikatsu でそのまま読み込める） |
-
-**重要**: 解凍後のファイルは元のフォーマットにバイト単位で完全復元されるため、vanilla Koikatsu で問題なく読み込める。圧縮はアーカイブ用途や共有時の帯域削減に適する。
-
----
-
-## BepInEx プラグイン（ゲーム内解凍）
-
-Zstd 圧縮ファイルを Koikatsu 内で読み込むには、BepInEx プラグイン `KK_CardCompression.dll` をインストールする必要がある。
-
-### 要件
-
-- **BepInEx**: 5.4.23.3 以降（5.x系）
-- **.NET Framework**: 4.6.2 以降（Koikatsu 同梱）
-
-### インストール
-
-1. `BepInEx/plugins/KK_CardCompression/` フォルダを作成
-2. `KK_CardCompression.dll` を配置（ZstdSharp・System.*.dll は ILRepack で単一DLLにマージ済み、Zstd 辞書は埋め込みリソースとして同梱）
-3. ゲームを起動するとプラグインが自動ロードされる
-
-### ビルド
-
-```bash
-cd KK_CardCompression.Plugin
-dotnet build -c Release
-```
-
-Release ビルドでは ILRepack が自動的に ZstdSharp.dll と System.*.dll を単一の `KK_CardCompression.dll` にマージする。
-
-### 互換性
-
-| 状態 | 必要なプラグイン |
-|------|----------------|
-| Zstd 圧縮ファイル（マーカー 102/103）を読み込む | **KK_CardCompression.dll** |
-| LZMA 圧縮ファイル（マーカー 101）を読み込む | **KK_SaveLoadCompression.dll** |
-| **解凍後のファイル**を読み込む | **プラグイン不要** |
-
-両プラグインは共存可能。KK_CardCompression.dll は Zstd マーカーのみを処理し、LZMA マーカーは KK_SaveLoadCompression.dll に委譲する。
-
----
-
-## 要件（デスクトップツール）
-
-- **OS**: Windows 10 / 11（64-bit）
-- **ランタイム**: .NET 8 Desktop Runtime
-
----
-
-## ビルド（デスクトップツール）
-
-```bash
-dotnet build -c Release
-```
-
-### リリース配布
-
-```bash
-dotnet publish -c Release
-```
-
-出力は `bin/Release/net8.0-windows/win-x64/publish/` に生成される。配布物は単一 EXE + DLL 構成。
-
----
-
-## プロジェクト構成
+## 構成
 
 ```
 KK_CardCompression/
-├── MainWindow.xaml              # WPF UI レイアウト
-├── MainWindow.xaml.cs            # UI ロジック・ファイル処理・D&D
-├── App.xaml.cs                  # アプリケーションエントリポイント
-├── Models/
-│   ├── FileEntry.cs             # 入力ファイルモデル
-│   └── OutputFileEntry.cs       # 出力ファイルモデル（進捗・圧縮率表示）
-├── Services/
-│   ├── CompressionService.cs    # 圧縮・解凍コア（LZMA/PNG処理/フォーマット判定）
-│   ├── ZstdCompressionService.cs # Zstd 圧縮・解凍（辞書あり/なし）
-│   ├── ScenePreprocessor.cs     # シーン内埋め込みPNG検出・再圧縮
-│   └── IniSettingsService.cs    # 設定の読み書き（INI形式）
-├── Resources/
-│   └── kk_universal_dict.zstd   # Zstd学習済み辞書（埋め込みリソース）
-├── Assets/
-│   ├── app-icon.ico
-│   └── app-icon.png
-├── KK_CardCompression.Plugin/   # BepInEx プラグイン（ゲーム内解凍用）
-│   ├── KK_CardCompression.Plugin.csproj
-│   ├── KK_CardCompressionPlugin.cs
-│   ├── nuget.config
-│   └── build.bat
-└── tools/                        # 開発用ツール
-    ├── train_dictionary.py       # Zstd辞書学習スクリプト
-    ├── analyze_data.py           # データ構造分析スクリプト
-    ├── analyze_chara.py          # キャラファイル分析スクリプト
-    └── benchmark_large.py       # 大規模ファイルベンチマーク
+├── src/
+│   ├── Plugin/                    # BepInEx プラグイン (.NET Framework 4.8)
+│   │   ├── KK_CardCompression.csproj
+│   │   ├── Plugin.cs              # エントリポイント
+│   │   ├── PngCompression/        # PNG LZMA 圧縮エンジン
+│   │   ├── Extension/             # 共通ユーティリティ
+│   │   ├── Extension.Unity/       # [削除済] Unity 依存コード（旧ウォーターマーク機能）
+│   │   ├── Resources/             # 埋め込みリソース
+│   │   └── Embedded/              # 埋め込み SevenZip.dll（ビルド時に自動生成）
+│   ├── App/                       # デスクトップアプリ (.NET 8 WPF)
+│   │   ├── KK_CardCompression.csproj
+│   │   ├── MainWindow.xaml(.cs)   # メイン UI
+│   │   ├── Models/                # データモデル
+│   │   └── Services/              # 圧縮・設定サービス
+│   └── TestRunner/                # テストプロジェクト
+├── Assets/                        # アプリアイコン
+├── tools/                         # Python ユーティリティ
+├── .github/workflows/             # CI / CD
+└── KK_CardCompression.sln         # Visual Studio ソリューション
 ```
 
-### 依存パッケージ
+## 動作環境
 
-| パッケージ | バージョン | 用途 |
-|-----------|----------|------|
-| LZMA-SDK | 19.0.0 | LZMA 圧縮・解凍 |
-| ZstdSharp.Port | 0.8.8 | Zstd 圧縮・解凍 |
-| SixLabors.ImageSharp | 3.1.12 | PNG 再エンコード |
+### プラグイン (DLL)
+- **Koikatsu** (Koikatu) または **Koikatsu Party**
+- **BepInEx 5.4.x**（BepInEx.Core 5.4.21 との依存あり）
+- **KK_SaveLoadCompression.dll** の同梱は不要（単一ファイルで動作）
 
----
+### デスクトップアプリ (EXE)
+- **.NET 8 Desktop Runtime** (x64)
+  - [ダウンロード](https://dotnet.microsoft.com/download/dotnet/8.0)
+- Windows 10 以降
+
+## ビルド
+
+### 前提
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- Visual Studio 2022 または `dotnet` CLI
+
+### プラグイン
+```bash
+dotnet build src/Plugin/KK_CardCompression.csproj -c Release
+# 出力: src/Plugin/bin/Release/KK_CardCompression.dll
+```
+
+### デスクトップアプリ
+```bash
+dotnet build src/App/KK_CardCompression.csproj -c Release
+# 出力: src/App/bin/Release/net8.0-windows/win-x64/
+```
+
+```bash
+# 単一ファイル発行
+dotnet publish src/App/KK_CardCompression.csproj -c Release -o publish/
+```
+
+### 両方一括
+```bash
+dotnet build KK_CardCompression.sln -c Release
+```
+
+## インストール
+
+### プラグイン
+1. `KK_CardCompression.dll` を以下のいずれかに配置:
+   - `BepInEx\plugins\KK_CardCompression\KK_CardCompression.dll`（推奨）
+   - `BepInEx\plugins\raurau\KK_CardCompression.dll`（旧配置）
+2. **必須**: `BepInEx\plugins\raurau\SevenZip.dll` が残っている場合は削除（v1.0.0 以降は単一 DLL で動作）
+3. **必須**: 旧 `jim60105\KK_SaveLoadCompression.dll` が存在する場合は削除（競合防止）
+4. Koikatsu 起動後、F1 → Plugin Settings → **KK Card Compression** → Enable = ON
+
+### 設定（F1 メニュー）
+
+| セクション | キー | デフォルト | 説明 |
+|-----------|------|-----------|------|
+| Config | Enable | false | プラグイン全体の有効／無効 |
+| Settings | Delete the original file | true | 圧縮後に元ファイルを上書き |
+| Settings | Display compression message on screen | false | 画面に圧縮メッセージ表示 |
+| Settings | Skip bytes compare when saving | false | 保存時のバイト検証をスキップ |
+| Enable at Where | Character | false | キャラ保存時に圧縮 |
+| Enable at Where | Coordinate | false | コーデ保存時に圧縮 |
+| Enable at Where | Studio Scene | true | スタジオシーン保存時に圧縮 |
+
+### デスクトップアプリ
+1. `KK_CardCompression.exe` を任意の場所に配置
+2. .NET 8 Desktop Runtime をインストール
+3. アプリ起動後、PNG ファイル／フォルダをドラッグ＆ドロップ
+4. 「圧縮」または「解凍」をクリック
+
+## 相互運用性
+
+- **互換性あり**: KK_SaveLoadCompression.dll (jim60105 版) — 同一の LZMA マーカー形式（101）を使用
+- **互換性なし**: Zstd 圧縮形式（102, 103） — 本ツールは LZMA のみ対応
 
 ## ライセンス
 
-このプロジェクトのライセンスについては、リポジトリの LICENSE ファイルを参照してください。
+Apache-2.0
+
+## 作者
+
+raurau

@@ -1,9 +1,8 @@
-using PngCompression;
-using SevenZip.Compression.LZMA;
+using KK_CardCompression.PngCompression;
 using System;
 using System.IO;
 
-namespace SevenZip
+namespace KK_CardCompression.SevenZip
 {
     public enum LzmaSpeed : int
     {
@@ -36,15 +35,15 @@ namespace SevenZip
             string matchFinder = "BT4";
             bool endMarker = true;
 
-            CoderPropID[] propIDs =
+            global::SevenZip.CoderPropID[] propIDs =
             {
-                CoderPropID.DictionarySize,
-                CoderPropID.PosStateBits,
-                CoderPropID.LitContextBits,
-                CoderPropID.LitPosBits,
-                CoderPropID.NumFastBytes,
-                CoderPropID.MatchFinder,
-                CoderPropID.EndMarker
+                global::SevenZip.CoderPropID.DictionarySize,
+                global::SevenZip.CoderPropID.PosStateBits,
+                global::SevenZip.CoderPropID.LitContextBits,
+                global::SevenZip.CoderPropID.LitPosBits,
+                global::SevenZip.CoderPropID.NumFastBytes,
+                global::SevenZip.CoderPropID.MatchFinder,
+                global::SevenZip.CoderPropID.EndMarker
             };
 
             object[] properties =
@@ -58,13 +57,13 @@ namespace SevenZip
                 endMarker
             };
 
-            Encoder lzmaEncoder = new Encoder();
+            global::SevenZip.Compression.LZMA.Encoder lzmaEncoder = new global::SevenZip.Compression.LZMA.Encoder();
             lzmaEncoder.SetCoderProperties(propIDs, properties);
             lzmaEncoder.WriteCoderProperties(output);
             long fileSize = input.Length;
             for (int i = 0; i < 8; i++) output.WriteByte((byte)(fileSize >> (8 * i)));
 
-            ICodeProgress prg = null;
+            global::SevenZip.ICodeProgress prg = null;
             if (onProgress != null)
             {
                 prg = new DelegateCodeProgress(onProgress);
@@ -74,7 +73,7 @@ namespace SevenZip
 
         public static void Decompress(Stream input, Stream output, LongProgressCallback onProgress = null)
         {
-            Decoder decoder = new Decoder();
+            global::SevenZip.Compression.LZMA.Decoder decoder = new global::SevenZip.Compression.LZMA.Decoder();
 
             byte[] properties = new byte[5];
             if (input.Read(properties, 0, 5) != 5)
@@ -91,7 +90,7 @@ namespace SevenZip
                 fileLength |= ((long)(byte)v) << (8 * i);
             }
 
-            ICodeProgress prg = null;
+            global::SevenZip.ICodeProgress prg = null;
             if (onProgress != null)
             {
                 prg = new DelegateCodeProgress(onProgress);
@@ -100,7 +99,7 @@ namespace SevenZip
             decoder.Code(input, output, compressedSize, fileLength, prg);
         }
 
-        private class DelegateCodeProgress : ICodeProgress
+        private class DelegateCodeProgress : global::SevenZip.ICodeProgress
         {
             private readonly LongProgressCallback handler;
             public DelegateCodeProgress(LongProgressCallback handler) => this.handler = handler;

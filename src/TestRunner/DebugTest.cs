@@ -14,7 +14,7 @@ class DebugTest
 
         Console.WriteLine($"Original: {new FileInfo(testFile).Length} bytes");
 
-        CompressionService.CompressFile(testFile, outPath, CompressionLevel.Maximum, null);
+        CompressionService.CompressFile(testFile, outPath, null);
 
         Console.WriteLine($"Compressed: {new FileInfo(outPath).Length} bytes");
 

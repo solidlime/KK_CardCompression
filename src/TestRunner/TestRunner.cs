@@ -20,7 +20,7 @@ class TestRunner
         Directory.CreateDirectory(verifyDir);
 
         Console.WriteLine("=== KK Card Compression Test ===");
-        Console.WriteLine($"Algorithm: LZMA (Maximum)");
+        Console.WriteLine($"Algorithm: LZMA (Fastest / VerySmall Dictionary)");
         Console.WriteLine();
 
         var files = Directory.GetFiles(testDir, "*.png", SearchOption.AllDirectories);
@@ -44,7 +44,7 @@ class TestRunner
             try
             {
                 var sw = Stopwatch.StartNew();
-                CompressionService.CompressFile(file, outPath, CompressionLevel.Maximum, null);
+                CompressionService.CompressFile(file, outPath, null);
                 sw.Stop();
 
                 long compressedSize = new FileInfo(outPath).Length;

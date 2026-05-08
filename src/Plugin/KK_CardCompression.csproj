@@ -3,8 +3,11 @@
     <TargetFramework>net48</TargetFramework>
     <OutputType>Library</OutputType>
     <LangVersion>latest</LangVersion>
-    <RootNamespace>SaveLoadCompression</RootNamespace>
-    <AssemblyName>KK_SaveLoadCompression</AssemblyName>
+    <RootNamespace>KK_CardCompression</RootNamespace>
+    <AssemblyName>KK_CardCompression</AssemblyName>
+    <Version>1.0.0</Version>
+    <Authors>raurau</Authors>
+    <Description>KK Card Compression - Image compression plugin for Koikatsu</Description>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
 

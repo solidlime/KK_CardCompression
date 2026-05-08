@@ -49,20 +49,9 @@ namespace KK_CardCompression
             LvInput.ItemsSource = _inputFiles;
             LvOutput.ItemsSource = _outputFiles;
 
-            InitCompressionLevelCombo();
             UpdateInputCount();
             UpdateOutputCount();
             LoadSettings();
-        }
-
-        private void InitCompressionLevelCombo()
-        {
-            CmbCompLevel.Items.Add(new CompressionOption("Fast（最速）", CompressionLevel.Fast));
-            CmbCompLevel.Items.Add(new CompressionOption("Maximum（高圧縮）", CompressionLevel.Maximum));
-            CmbCompLevel.Items.Add(new CompressionOption("Ultra（最高圧縮）", CompressionLevel.Ultra));
-            CmbCompLevel.DisplayMemberPath  = "Label";
-            CmbCompLevel.SelectedValuePath  = "Level";
-            CmbCompLevel.SelectedValue      = CompressionLevel.Maximum;
         }
 
         private void LoadSettings()
@@ -75,24 +64,10 @@ namespace KK_CardCompression
                 TxtOutputPath.Text = $"出力先: {_outputDirectory}";
             }
 
-            SelectCompressionLevel(settings.CompressionLevel);
             _isPreviewEnabled = settings.PreviewEnabled;
             TglPreviewEnabled.IsChecked = _isPreviewEnabled;
 
             _isInitialized = true;
-        }
-
-        private void SelectCompressionLevel(CompressionLevel level)
-        {
-            foreach (var item in CmbCompLevel.Items)
-            {
-                if (item is CompressionOption option && option.Level == level)
-                {
-                    CmbCompLevel.SelectedItem = option;
-                    return;
-                }
-            }
-            CmbCompLevel.SelectedValue = CompressionLevel.Maximum;
         }
 
         private void SaveSettings()
@@ -101,21 +76,14 @@ namespace KK_CardCompression
             IniSettingsService.Save(new AppSettings
             {
                 LastOutputDirectory  = _outputDirectory,
-                CompressionLevel     = GetSelectedCompressionLevel(),
                 PreviewEnabled       = _isPreviewEnabled,
             });
         }
 
-        private CompressionLevel GetSelectedCompressionLevel()
-            => CmbCompLevel?.SelectedValue is CompressionLevel l ? l : CompressionLevel.Maximum;
-
-        private void CmbCompLevel_SelectionChanged(object sender, SelectionChangedEventArgs e)
-            => SaveSettings();
-
         private void TglPreviewEnabled_Changed(object sender, RoutedEventArgs e)
         {
             _isPreviewEnabled = TglPreviewEnabled.IsChecked == true;
-            if (!_isPreviewEnabled)
+            if (!_isPreviewEnabled && PreviewPopup != null)
                 PreviewPopup.IsOpen = false;
             SaveSettings();
         }
@@ -168,6 +136,24 @@ namespace KK_CardCompression
 
         // ── マウスオーバープレビュー ────────────────────────────────
         private void LvInput_MouseMove(object sender, MouseEventArgs e)
+            => UpdatePreviewOnMouseMove(LvInput, e);
+
+        private void LvInput_MouseLeave(object sender, MouseEventArgs e)
+            => ClearPreviewOnMouseLeave(LvInput);
+
+        private void ClearPreviewOnMouseLeave(ListView listView)
+        {
+            if (listView.Items.Count == 0) return;
+            PreviewPopup.IsOpen = false;
+        }
+
+        private void LvOutput_MouseMove(object sender, MouseEventArgs e)
+            => UpdatePreviewOnMouseMove(LvOutput, e);
+
+        private void LvOutput_MouseLeave(object sender, MouseEventArgs e)
+            => ClearPreviewOnMouseLeave(LvOutput);
+
+        private void UpdatePreviewOnMouseMove(ListView listView, MouseEventArgs e)
         {
             if (!_isPreviewEnabled) return;
 
@@ -185,31 +171,6 @@ namespace KK_CardCompression
                 PreviewPopup.IsOpen = false;
             }
         }
-
-        private void LvInput_MouseLeave(object sender, MouseEventArgs e)
-            => PreviewPopup.IsOpen = false;
-
-        private void LvOutput_MouseMove(object sender, MouseEventArgs e)
-        {
-            if (!_isPreviewEnabled) return;
-
-            var element = e.OriginalSource as DependencyObject;
-            while (element != null && element is not System.Windows.Controls.ListViewItem)
-                element = VisualTreeHelper.GetParent(element);
-
-            if (element is System.Windows.Controls.ListViewItem item && item.DataContext is OutputFileEntry entry)
-            {
-                UpdatePreview(entry);
-                PreviewPopup.IsOpen = true;
-            }
-            else
-            {
-                PreviewPopup.IsOpen = false;
-            }
-        }
-
-        private void LvOutput_MouseLeave(object sender, MouseEventArgs e)
-            => PreviewPopup.IsOpen = false;
 
         private void UpdatePreview(FileEntry? entry)
         {
@@ -430,14 +391,14 @@ namespace KK_CardCompression
         }
 
         private void LvInput_DoubleClick(object sender, MouseButtonEventArgs e)
-        {
-            if (LvInput.SelectedItem is FileEntry entry)
-                OpenFile(entry.FullPath);
-        }
+            => HandleDoubleClick(LvInput);
 
         private void LvOutput_DoubleClick(object sender, MouseButtonEventArgs e)
+            => HandleDoubleClick(LvOutput);
+
+        private static void HandleDoubleClick(ListView listView)
         {
-            if (LvOutput.SelectedItem is OutputFileEntry entry)
+            if (listView.SelectedItem is FileEntry entry)
                 OpenFile(entry.FullPath);
         }
 
@@ -515,8 +476,6 @@ namespace KK_CardCompression
             var files = _inputFiles.ToList();
             int total = files.Count;
 
-            var compressionLevel = GetSelectedCompressionLevel();
-
             var entries = new OutputFileEntry[total];
             var doCompressFlags = new bool[total];
             for (int i = 0; i < total; i++)
@@ -548,7 +507,7 @@ namespace KK_CardCompression
                     try
                     {
                         result = await Task.Run(
-                            () => ProcessSingleFile(source.FullPath, doCompressFlags[i], compressionLevel, progress),
+                            () => ProcessSingleFile(source.FullPath, doCompressFlags[i], progress),
                             token);
                     }
                     catch (OperationCanceledException)
@@ -605,7 +564,6 @@ namespace KK_CardCompression
         private record ProcessResult(bool Success, string? OutputPath, string? ErrorMessage = null);
 
         private ProcessResult ProcessSingleFile(string inputPath, bool compress,
-                                                CompressionLevel compressionLevel,
                                                 IProgress<double> progress)
         {
             string backupPath = inputPath + ".bak";
@@ -622,7 +580,7 @@ namespace KK_CardCompression
                     Directory.CreateDirectory(outputDir);
 
                 if (compress)
-                    CompressionService.CompressFile(inputPath, outputPath, compressionLevel, progress);
+                    CompressionService.CompressFile(inputPath, outputPath, progress);
                 else
                     CompressionService.DecompressFile(inputPath, outputPath, progress);
 
@@ -711,6 +669,5 @@ namespace KK_CardCompression
             return $"{value:F1} {sizes[order]}";
         }
 
-        private sealed record CompressionOption(string Label, CompressionLevel Level);
     }
 }

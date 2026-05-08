@@ -27,9 +27,15 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Publish desktop tool
+      - name: Add NuGet source (BepInEx)
+        run: dotnet nuget add source https://nuget.bepinex.dev/v3/index.json -n BepInEx
+
+      - name: Build Plugin (net48)
+        run: dotnet build src/Plugin/KK_CardCompression.csproj -c Release
+
+      - name: Publish Desktop App (single-file)
         run: |
-          dotnet publish KK_CardCompression.csproj -c Release `
+          dotnet publish src/App/KK_CardCompression.csproj -c Release `
             --self-contained false `
             -p:PublishSingleFile=true `
             -p:IncludeNativeLibrariesForSelfExtract=true `
@@ -45,27 +51,40 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "KKCC ${{ github.ref_name }}"
+          name: "KK Card Compression ${{ github.ref_name }}"
           body: |
-            ## KKCC ${{ github.ref_name }}
+            ## KK Card Compression ${{ github.ref_name }}
 
             Koikatsu カード・シーン PNG ファイルの LZMA ロスレス圧縮／解凍ツール
 
             ### ダウンロード
 
-            | ファイル | 説明 |
-            |----------|------|
-            | `KK_CardCompression.exe` | デスクトップツール（.NET 8 Runtime 必要） |
+            | ファイル | 説明 | 前提 |
+            |----------|------|------|
+            | `KK_CardCompression.exe` | デスクトップ バッチツール | .NET 8 Desktop Runtime |
+            | `KK_CardCompression.dll` | BepInEx プラグイン（自動圧縮／解凍） | BepInEx 5.4.x |
 
-            ### 使い方
+            ### 変更履歴
+
+            - プラグイン: KK_SaveLoadCompression → KK_CardCompression にリネーム（作者: raurau）
+            - 単一 DLL 配布（SevenZip.dll 不要）
+            - 圧縮レベルを固定化（速度優先）
+            - ディレクトリ構造の整理
+            - デッドコード除去・リファクタリング
+
+            ### 導入手順
+
+            **プラグイン**:
+            1. `KK_CardCompression.dll` を `BepInEx\plugins\KK_CardCompression\` に配置
+            2. 旧 `jim60105\KK_SaveLoadCompression.dll` と `raurau\SevenZip.dll` を削除
+            3. F1 → Plugin Settings → KK Card Compression → Enable = ON
+
+            **デスクトップアプリ**:
             1. [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) をインストール
             2. `KK_CardCompression.exe` を実行
-            3. ファイルをドロップして「圧縮」をクリック
-
-            ### 互換性
-            - 圧縮形式は KK_SaveLoadCompression.dll（LZMA マーカー101）と完全互換
-            - 解凍には KK_SaveLoadCompression.dll が必要
+            3. PNG ファイルをドロップ → 圧縮／解凍
           files: |
             publish-desktop/KK_CardCompression.exe
+            src/Plugin/bin/Release/KK_CardCompression.dll
           draft: false
           prerelease: false

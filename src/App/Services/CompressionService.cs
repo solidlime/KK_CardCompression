@@ -6,18 +6,6 @@ using SevenZip.Compression.LZMA;
 
 namespace KK_CardCompression.Services
 {
-    /// <summary>
-    /// LZMA 圧縮レベル。numFastBytes のみ変わる。
-    /// Dictionary サイズは常に 64 MiB なので KK_SaveLoadCompression との互換性は完全維持。
-    /// numFastBytes は LZMA ストリームに記録されないため、デコーダー互換性に影響しない。
-    /// </summary>
-    public enum CompressionLevel
-    {
-        Fast    = 5,    // 最速
-        Maximum = 128,  // 高圧縮（推奨）
-        Ultra   = 273,  // 最高圧縮
-    }
-
     internal static class KkToken
     {
         public const string StudioToken     = "【KStudio】";
@@ -74,7 +62,6 @@ namespace KK_CardCompression.Services
         /// 出力形式: [PNGデータ] [圧縮マーカー] [トークン] [LZMA圧縮ストリーム]
         /// </summary>
         public static void CompressFile(string inputPath, string outputPath,
-                                        CompressionLevel level = CompressionLevel.Maximum,
                                         IProgress<double>? progress = null)
         {
             using var inFs  = new FileStream(inputPath,  FileMode.Open,   FileAccess.Read,  FileShare.ReadWrite);
@@ -122,7 +109,7 @@ namespace KK_CardCompression.Services
 
             // LZMA 圧縮
             using var msCompressed = new MemoryStream();
-            LzmaCompress(new MemoryStream(extraData), msCompressed, level, progress, 0.12, 0.95);
+            LzmaCompress(new MemoryStream(extraData), msCompressed, progress, 0.12, 0.95);
 
             // 圧縮後の検証（compress → decompress → compare）
             msCompressed.Seek(0, SeekOrigin.Begin);
@@ -270,6 +257,7 @@ namespace KK_CardCompression.Services
 
                 string token = br.ReadString();
                 if (token.Contains(KkToken.CharaToken))
+                    // Note: Assumes female (sex1); male cards (sex0) are not separately detected
                     return KkToken.CharaToken + "】sex1";
                 if (token == KkToken.CoordinateToken)
                     return KkToken.CoordinateToken;
@@ -291,17 +279,16 @@ namespace KK_CardCompression.Services
         // ---------------------------------------------------------------
 
         private static void LzmaCompress(Stream input, Stream output,
-                                         CompressionLevel level = CompressionLevel.Fast,
                                          IProgress<double>? progress = null,
                                          double progressStart = 0.12, double progressEnd = 0.96)
         {
             var props = new object[]
             {
-                1 << 26,           // DictionarySize: 64 MiB (互換性のため固定)
+                1 << 16,           // DictionarySize: 64 KiB (KK_SaveLoadCompression プラグインのデフォルト)
                 2,                 // PosStateBits
                 3,                 // LitContextBits
                 0,                 // LitPosBits
-                (int)level,        // NumFastBytes
+                5,                 // NumFastBytes (LzmaSpeed.Fastest)
                 "BT4",             // MatchFinder
                 true,              // EndMarker
             };
