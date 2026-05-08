@@ -32,11 +32,6 @@ namespace KK_CardCompression.PngCompression
         public long Save(Stream inputStream, Stream outputStream, string token = null, byte[] pngData = null, ProgressCallback compressProgress = null, bool doCompare = true, ProgressCallback compareProgress = null)
         {
             long dataSize = 0;
-            LongProgressCallback _compressProgress = null;
-            if (null != compressProgress)
-            {
-                _compressProgress = (long inSize, long _) => compressProgress(Convert.ToDecimal(inSize) / dataSize);
-            }
 
             using (BinaryReader binaryReader = new BinaryReader(inputStream))
             using (BinaryWriter binaryWriter = new BinaryWriter(outputStream))
@@ -52,6 +47,13 @@ namespace KK_CardCompression.PngCompression
                 }
 
                 dataSize = inputStream.Length - inputStream.Position;
+
+                LongProgressCallback _compressProgress = null;
+                if (null != compressProgress && dataSize > 0)
+                {
+                    _compressProgress = (long inSize, long _) => compressProgress(Convert.ToDecimal(inSize) / dataSize);
+                }
+
                 binaryWriter.Write(pngData);
 
                 if (null == token)
@@ -141,11 +143,6 @@ namespace KK_CardCompression.PngCompression
         public long Load(Stream inputStream, Stream outputStream, string token = null, byte[] pngData = null, ProgressCallback decompressProgress = null)
         {
             long dataSize = 0;
-            LongProgressCallback _decompressProgress = null;
-            if (null != decompressProgress)
-            {
-                _decompressProgress = (long inSize, long _) => decompressProgress(Convert.ToDecimal(inSize) / dataSize);
-            }
 
             using (BinaryReader binaryReader = new BinaryReader(inputStream))
             using (BinaryWriter binaryWriter = new BinaryWriter(outputStream))
@@ -180,7 +177,7 @@ namespace KK_CardCompression.PngCompression
                     switch (token)
                     {
                         case Token.StudioToken:
-                            checkfail = !new Version(binaryReader.ReadString()).Equals(new Version(101, 0, 0, 0));
+                            checkfail = !Version.TryParse(binaryReader.ReadString(), out Version v) || !v.Equals(new Version(101, 0, 0, 0));
                             break;
                         case Token.CoordinateToken:
                         default:
@@ -205,6 +202,13 @@ namespace KK_CardCompression.PngCompression
                     binaryWriter.Write(pngData);
 
                     dataSize = inputStream.Length - inputStream.Position;
+
+                    LongProgressCallback _decompressProgress = null;
+                    if (null != decompressProgress && dataSize > 0)
+                    {
+                        _decompressProgress = (long inSize, long _) => decompressProgress(Convert.ToDecimal(inSize) / dataSize);
+                    }
+
                     LZMA.Decompress(inputStream, outputStream, _decompressProgress);
                 }
                 catch (Exception)
