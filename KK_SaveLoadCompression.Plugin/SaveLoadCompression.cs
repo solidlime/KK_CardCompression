@@ -118,7 +118,7 @@ namespace SaveLoadCompression
         public static void SaveCharaFilePostfix(ChaFileControl __instance, string filename, byte sex)
         {
             if(SaveLoadCompression.EnableOnCharaSaveing.Value)
-                Save(filename, Token.CharaToken + "】" + Token.SexToken + sex);
+                Save(__instance.ConvertCharaFilePath(filename, sex, true), Token.CharaToken + "】" + Token.SexToken + sex);
         }
 
         //Coordinate Save
@@ -131,6 +131,8 @@ namespace SaveLoadCompression
 
         public static void Save(string path, string token)
         {
+            Logger.LogDebug($"Save called: path={path}, token={token}");
+
             string cleanedPath = path;
             while (cleanedPath.Contains("_compressed"))
             {
@@ -143,9 +145,12 @@ namespace SaveLoadCompression
                 compressedPath = cleanedPath.Substring(0, cleanedPath.Length - 4) + "_compressed.png";
             }
 
+            Logger.LogDebug($"File exists: {File.Exists(cleanedPath)}");
+
             string decompressCacheDirName = SaveLoadCompression.CacheDirectory.CreateSubdirectory("Decompressed").FullName;
             if (!SaveLoadCompression.Enable.Value || !SaveLoadCompression.Notice.Value)
             {
+                Logger.LogDebug($"Save skipped: Enable={SaveLoadCompression.Enable.Value}, Notice={SaveLoadCompression.Notice.Value}");
                 File.Delete(Path.Combine(decompressCacheDirName, Path.GetFileName(path)));
                 File.Delete(Path.Combine(decompressCacheDirName, Path.GetFileName(cleanedPath)));
                 File.Delete(Path.Combine(decompressCacheDirName, Path.GetFileName(compressedPath)));
@@ -173,6 +178,7 @@ namespace SaveLoadCompression
                 pngData = rawPng;
                 unzipPngData = rawPng;
             }
+            Logger.LogDebug($"Watermark created: pngData length={pngData?.Length}, unzipPngData length={unzipPngData?.Length}");
 
             Thread newThread = new Thread(saveThread);
             newThread.Start();
@@ -184,11 +190,14 @@ namespace SaveLoadCompression
                 long originalSize = 0;
                 float startTime = Time.time;
                 string TempPath = Path.Combine(SaveLoadCompression.CacheDirectory.CreateSubdirectory("Compressed").FullName, Path.GetFileName(path));
+                Logger.LogDebug($"Temp path: {TempPath}");
                 SaveLoadCompression.Progress = "";
                 try
                 {
                     originalSize = new FileInfo(path).Length;
+                    Logger.LogDebug($"Original file size: {originalSize}");
 
+                    Logger.LogDebug($"PngCompression.Save starting: path={path}, temp={TempPath}, token={token}");
                     newSize = new PngCompression.PngCompression().Save(
                         path,
                         TempPath,
@@ -197,6 +206,7 @@ namespace SaveLoadCompression
                         compressProgress: (decimal progress) => SaveLoadCompression.Progress = $"Compressing: {progress:p2}",
                         doComapre: !SaveLoadCompression.SkipSaveCheck.Value,
                         compareProgress: (decimal progress) => SaveLoadCompression.Progress = $"Comparing: {progress:p2}");
+                    Logger.LogDebug($"PngCompression.Save completed: newSize={newSize}");
 
                     if (newSize > 0)
                     {
@@ -228,6 +238,9 @@ namespace SaveLoadCompression
                 }
                 catch (Exception e)
                 {
+                    Logger.LogError($"saveThread exception: {e.GetType().Name} - {e.Message}");
+                    Logger.LogDebug($"saveThread stack trace: {e.StackTrace}");
+
                     if (e is IOException && newSize > 0)
                     {
                         try
@@ -240,8 +253,9 @@ namespace SaveLoadCompression
                                 }
                             }
                         }
-                        catch (Exception)
+                        catch (Exception ex2)
                         {
+                            Logger.LogError($"Fallback copy also failed: {ex2.GetType().Name} - {ex2.Message}");
                             File.Copy(TempPath, path.Substring(0, path.Length - 4) + "_compressed2.png");
                             Logger.LogError("Overwrite was FAILED twice. Fallback to use the '_compressed2' path.");
                         }
@@ -280,7 +294,7 @@ namespace SaveLoadCompression
         [HarmonyPrefix, HarmonyPriority(Priority.First), HarmonyPatch(typeof(ChaFileControl), "LoadCharaFile", new Type[] { typeof(string), typeof(byte), typeof(bool), typeof(bool) })]
         public static void LoadCharaFilePrefix(ChaFileControl __instance, ref string filename, byte sex)
         {
-            filename = __instance.ConvertCharaFilePath(filename, sex, true);
+            filename = __instance.ConvertCharaFilePath(filename, sex, false);
             Load(ref filename, Token.CharaToken);
         }
 
@@ -291,6 +305,9 @@ namespace SaveLoadCompression
 
         public static void Load(ref string path, string token)
         {
+            Logger.LogDebug($"Load called: path={path}, token={token}");
+            Logger.LogDebug($"Source file exists: {File.Exists(path)}");
+
             string fileName = Path.GetFileName(path);
             string tmpPath = Path.Combine(SaveLoadCompression.CacheDirectory.CreateSubdirectory("Decompressed").FullName, fileName);
             if (File.Exists(tmpPath))
@@ -304,19 +321,21 @@ namespace SaveLoadCompression
             SaveLoadCompression.Progress = "";
             try
             {
-                if (0 != new PngCompression.PngCompression().Load(path,
-                                                        tmpPath,
-                                                        token,
-                                                        (decimal progress) => SaveLoadCompression.Progress = $"Decompressing: {progress:p2}"))
+                long loadResult = new PngCompression.PngCompression().Load(path, tmpPath, token,
+                    (decimal progress) => SaveLoadCompression.Progress = $"Decompressing: {progress:p2}");
+                Logger.LogDebug($"PngCompression.Load result: {loadResult}");
+
+                if (0 != loadResult)
                 {
                     path = tmpPath;
+                    long decompressedSize = new FileInfo(tmpPath).Length;
                     if (Time.time - startTime == 0)
                     {
-                        Logger.LogDebug($"Decompressed: {fileName}");
+                        Logger.LogDebug($"Decompressed: {fileName}, size={decompressedSize}");
                     }
                     else
                     {
-                        Logger.LogDebug($"Decompressed: {fileName}, finish in {Time.time - startTime} seconds");
+                        Logger.LogDebug($"Decompressed: {fileName}, size={decompressedSize}, finish in {Time.time - startTime} seconds");
                     }
                 }
                 else
@@ -324,9 +343,11 @@ namespace SaveLoadCompression
                     File.Delete(tmpPath);
                 }
             }
-            catch (Exception)
+            catch (Exception e)
             {
                 Logger.Log(LogLevel.Error | LogLevel.Message, $"Decompressed failed: {fileName}");
+                Logger.LogError($"Load exception: {e.GetType().Name} - {e.Message}");
+                Logger.LogDebug($"Load stack trace: {e.StackTrace}");
                 File.Delete(tmpPath);
                 return;
             }
@@ -339,27 +360,9 @@ namespace SaveLoadCompression
 
         internal static byte[] MakeWatermarkPic(byte[] pngData, string token, bool zip)
         {
-            Texture2D png = new Texture2D(1, 1);
-            png.LoadImage(pngData);
-
-            Texture2D watermark;
-            if (zip)
-            {
-                watermark = UnityImageHelper.LoadDllResourceToTexture2D($"SaveLoadCompression.Resources.zip_watermark.png");
-            }
-            else
-            {
-                watermark = UnityImageHelper.LoadDllResourceToTexture2D($"SaveLoadCompression.Resources.unzip_watermark.png");
-            }
-            float scaleTimes = new PngCompression.PngCompression().GetScaleTimes(token);
-            watermark = watermark.Scale(Convert.ToInt32(png.width * scaleTimes));
-            png = png.OverwriteTexture(
-                watermark,
-                0,
-                png.height - watermark.height
-            );
-            Extension.Logger.LogDebug($"Add Watermark: zip");
-            return png.EncodeToPNG();
+            // Watermark is cosmetic - skip for now to avoid Unity type loading issues
+            Logger.LogDebug($"Watermark skipped (token={token}, zip={zip})");
+            return pngData;
         }
 
         private static void ChangePNG(string path, byte[] pngData)
