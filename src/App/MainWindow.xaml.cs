@@ -598,12 +598,20 @@ namespace KK_CardCompression
                     Directory.CreateDirectory(outputDir);
 
                 if (compress)
-                    CompressionService.CompressFile(inputPath, outputPath, progress);
+                {
+                    if (CompressionService.IsCompressed(inputPath))
+                        File.Copy(inputPath, outputPath, true);
+                    else
+                        CompressionService.CompressFile(inputPath, outputPath, progress);
+                }
                 else
                     CompressionService.DecompressFile(inputPath, outputPath, progress);
 
                 if (!File.Exists(outputPath))
                     throw new InvalidOperationException("出力ファイルが作成されませんでした。");
+
+                File.SetLastWriteTime(outputPath, File.GetLastWriteTime(inputPath));
+                File.SetCreationTime(outputPath, File.GetCreationTime(inputPath));
 
                 if (File.Exists(backupPath))
                     File.Delete(backupPath);

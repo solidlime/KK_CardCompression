@@ -66,9 +66,7 @@ namespace KK_CardCompression.Services
         {
             {
                 using var inFs  = new FileStream(inputPath,  FileMode.Open,   FileAccess.Read,  FileShare.ReadWrite);
-                using var outFs = new FileStream(outputPath, FileMode.Create,  FileAccess.Write);
                 using var br    = new BinaryReader(inFs,  Encoding.UTF8, leaveOpen: true);
-                using var bw    = new BinaryWriter(outFs, Encoding.UTF8, leaveOpen: true);
 
                 progress?.Report(0.01);
 
@@ -82,12 +80,15 @@ namespace KK_CardCompression.Services
                 if (token == null)
                     throw new InvalidDataException("Koikatsuのファイル形式を認識できませんでした。");
 
-                // 既に圧縮済みなら例外
+                // 既に圧縮済みなら例外（出力ファイルを作成する前にチェック）
                 inFs.Seek(extraStart, SeekOrigin.Begin);
                 if (GuessCompressed(br))
                     throw new InvalidOperationException("このファイルは既に圧縮されています。");
 
                 inFs.Seek(extraStart, SeekOrigin.Begin);
+
+                using var outFs = new FileStream(outputPath, FileMode.Create, FileAccess.Write);
+                using var bw    = new BinaryWriter(outFs, Encoding.UTF8, leaveOpen: true);
 
                 // PNG を出力
                 bw.Write(pngData);
