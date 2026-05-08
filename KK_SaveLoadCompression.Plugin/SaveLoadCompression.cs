@@ -31,7 +31,6 @@ namespace SaveLoadCompression
         internal const string PLUGIN_RELEASE_VERSION = "1.4.0";
         public static ConfigEntry<DictionarySize> DictionarySize { get; private set; }
         public static ConfigEntry<bool> Enable { get; private set; }
-        public static ConfigEntry<bool> Notice { get; private set; }
         public static ConfigEntry<bool> DeleteTheOri { get; private set; }
         public static ConfigEntry<bool> DisplayMessage { get; private set; }
         public static ConfigEntry<bool> SkipSaveCheck { get; private set; }
@@ -67,8 +66,7 @@ namespace SaveLoadCompression
 
             CleanCacheFolder();
 
-            Enable = Config.Bind<bool>("Config", "Enable", false, "!!!NOTICE!!!");
-            Notice = Config.Bind<bool>("Config", "I do realize that without this plugin, the save files will not be readable!!", false, "!!!NOTICE!!!");
+            Enable = Config.Bind<bool>("Config", "Enable", false, "Enable compression on save. Requires restart or re-enable.");
 
             DeleteTheOri = Config.Bind<bool>("Settings", "Delete the original file", true, "The original saved file will be automatically overwritten.");
             DisplayMessage = Config.Bind<bool>("Settings", "Display compression message on screen", false);
@@ -168,9 +166,9 @@ namespace SaveLoadCompression
             Logger.LogDebug($"File exists: {File.Exists(cleanedPath)}");
 
             string decompressCacheDirName = SaveLoadCompression.CacheDirectory.CreateSubdirectory("Decompressed").FullName;
-            if (!SaveLoadCompression.Enable.Value || !SaveLoadCompression.Notice.Value)
+            if (!SaveLoadCompression.Enable.Value)
             {
-                Logger.LogDebug($"Save skipped: Enable={SaveLoadCompression.Enable.Value}, Notice={SaveLoadCompression.Notice.Value}");
+                Logger.LogDebug($"Save skipped: Enable={SaveLoadCompression.Enable.Value}");
                 File.Delete(Path.Combine(decompressCacheDirName, Path.GetFileName(path)));
                 File.Delete(Path.Combine(decompressCacheDirName, Path.GetFileName(cleanedPath)));
                 File.Delete(Path.Combine(decompressCacheDirName, Path.GetFileName(compressedPath)));

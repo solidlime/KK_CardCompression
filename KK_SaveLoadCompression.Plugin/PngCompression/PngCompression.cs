@@ -2,10 +2,11 @@ using Extension;
 using SevenZip;
 using System;
 using System.IO;
-using System.Linq;
-
 namespace PngCompression
 {
+    public delegate void ProgressCallback(decimal progress);
+    public delegate void LongProgressCallback(long current, long total);
+
     public struct Token
     {
         public const string StudioToken = "【KStudio】";
@@ -18,7 +19,7 @@ namespace PngCompression
     {
         public float GetScaleTimes(string token) => (token == Token.StudioToken) ? .14375f : .30423f;
 
-        public long Save(string inputPath, string outputPath, string token = null, byte[] pngData = null, Action<decimal> compressProgress = null, bool doComapre = true, Action<decimal> compareProgress = null)
+        public long Save(string inputPath, string outputPath, string token = null, byte[] pngData = null, ProgressCallback compressProgress = null, bool doComapre = true, ProgressCallback compareProgress = null)
         {
             using (FileStream fileStreamReader = new FileStream(inputPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             using (FileStream fileStreamWriter = new FileStream(outputPath, FileMode.Create, FileAccess.Write))
@@ -27,10 +28,10 @@ namespace PngCompression
             }
         }
 
-        public long Save(Stream inputStream, Stream outputStream, string token = null, byte[] pngData = null, Action<decimal> compressProgress = null, bool doComapre = true, Action<decimal> compareProgress = null)
+        public long Save(Stream inputStream, Stream outputStream, string token = null, byte[] pngData = null, ProgressCallback compressProgress = null, bool doComapre = true, ProgressCallback compareProgress = null)
         {
             long dataSize = 0;
-            Action<long, long> _compressProgress = null;
+            LongProgressCallback _compressProgress = null;
             if (null != compressProgress)
             {
                 _compressProgress = (long inSize, long _) => compressProgress(Convert.ToDecimal(inSize) / dataSize);
@@ -109,7 +110,12 @@ namespace PngCompression
 
                                 inputStream.Read(aByteA, 0, (int)bufferSize);
                                 i += msDecompressed.Read(bByteA, 0, (int)bufferSize);
-                                if (!aByteA.SequenceEqual(bByteA))
+                                bool diff = false;
+                                for (int j = 0; j < bufferSize; j++)
+                                {
+                                    if (aByteA[j] != bByteA[j]) { diff = true; break; }
+                                }
+                                if (diff)
                                 {
                                     return 0;
                                 }
@@ -122,7 +128,7 @@ namespace PngCompression
             }
         }
 
-        public long Load(string inputPath, string outputPath, string token = null, Action<decimal> decompressProgress = null)
+        public long Load(string inputPath, string outputPath, string token = null, ProgressCallback decompressProgress = null)
         {
             using (FileStream fileStreamReader = new FileStream(inputPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             using (FileStream fileStreamWriter = new FileStream(outputPath, FileMode.Create, FileAccess.Write))
@@ -131,10 +137,10 @@ namespace PngCompression
             }
         }
 
-        public long Load(Stream inputStream, Stream outputStream, string token = null, byte[] pngData = null, Action<decimal> decompressProgress = null)
+        public long Load(Stream inputStream, Stream outputStream, string token = null, byte[] pngData = null, ProgressCallback decompressProgress = null)
         {
             long dataSize = 0;
-            Action<long, long> _decompressProgress = null;
+            LongProgressCallback _decompressProgress = null;
             if (null != decompressProgress)
             {
                 _decompressProgress = (long inSize, long _) => decompressProgress(Convert.ToDecimal(inSize) / dataSize);

@@ -1,3 +1,4 @@
+using PngCompression;
 using SevenZip.Compression.LZMA;
 using System;
 using System.IO;
@@ -26,7 +27,7 @@ namespace SevenZip
 
     public static class LZMA
     {
-        public static void Compress(Stream input, Stream output, LzmaSpeed speed = LzmaSpeed.Fastest, DictionarySize dictionarySize = DictionarySize.VerySmall, Action<long, long> onProgress = null)
+        public static void Compress(Stream input, Stream output, LzmaSpeed speed = LzmaSpeed.Fastest, DictionarySize dictionarySize = DictionarySize.VerySmall, LongProgressCallback onProgress = null)
         {
             int posStateBits = 2;
             int litContextBits = 3;
@@ -71,7 +72,7 @@ namespace SevenZip
             lzmaEncoder.Code(input, output, -1, -1, prg);
         }
 
-        public static void Decompress(Stream input, Stream output, Action<long, long> onProgress = null)
+        public static void Decompress(Stream input, Stream output, LongProgressCallback onProgress = null)
         {
             Decoder decoder = new Decoder();
 
@@ -101,8 +102,8 @@ namespace SevenZip
 
         private class DelegateCodeProgress : ICodeProgress
         {
-            private readonly Action<long, long> handler;
-            public DelegateCodeProgress(Action<long, long> handler) => this.handler = handler;
+            private readonly LongProgressCallback handler;
+            public DelegateCodeProgress(LongProgressCallback handler) => this.handler = handler;
             public void SetProgress(long inSize, long outSize) => handler(inSize, outSize);
         }
     }
