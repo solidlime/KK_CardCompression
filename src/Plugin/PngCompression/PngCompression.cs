@@ -39,6 +39,11 @@ namespace KK_CardCompression.PngCompression
                 if (null == pngData)
                 {
                     pngData = ImageHelper.LoadPngBytes(binaryReader);
+                    if (null == pngData)
+                    {
+                        Logger.LogError("Failed to read PNG data from file. Compression aborted.");
+                        return 0;
+                    }
                 }
                 else
                 {
