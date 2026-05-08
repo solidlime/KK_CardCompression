@@ -5,8 +5,6 @@ namespace KK_CardCompression.Extension
 {
     public static class ImageHelper
     {
-        private const int IEND_MAGIC = 0x49454E44; // 'IEND' as big-endian int32
-
         public static byte[] ReadToEnd(Stream stream)
         {
             if (stream == null) throw new ArgumentNullException(nameof(stream));
@@ -26,27 +24,18 @@ namespace KK_CardCompression.Extension
             {
                 byte[] pngSignature = new byte[8];
                 byte[] ihdrData = new byte[8] { 137, 80, 78, 71, 13, 10, 26, 10 };
-                int read = st.Read(pngSignature, 0, 8);
-                Logger.LogDebug($"GetPngSize: read={read} sig={BitConverter.ToString(pngSignature)} len={st.Length} pos={position}");
-                if (read < 8)
-                {
-                    st.Seek(position, SeekOrigin.Begin);
-                    Logger.LogDebug("GetPngSize: short read (<8 bytes)");
-                    return 0L;
-                }
+                st.Read(pngSignature, 0, 8);
                 for (int i = 0; i < 8; i++)
                 {
                     if (pngSignature[i] != ihdrData[i])
                     {
                         st.Seek(position, SeekOrigin.Begin);
-                        Logger.LogDebug($"GetPngSize: sig mismatch at byte {i}");
                         return 0L;
                     }
                 }
 
                 bool flag = true;
-                int chunkCount = 0;
-                while (flag && chunkCount++ < 1000)
+                while (flag)
                 {
                     byte[] widthBytes = new byte[4];
                     st.Read(widthBytes, 0, 4);
@@ -54,31 +43,25 @@ namespace KK_CardCompression.Extension
                     int chunkLength = BitConverter.ToInt32(widthBytes, 0);
                     byte[] heightBytes = new byte[4];
                     st.Read(heightBytes, 0, 4);
-                    int chunkType = BitConverter.ToInt32(heightBytes, 0);
-                    string typeStr = System.Text.Encoding.ASCII.GetString(heightBytes);
-                    Logger.LogDebug($"  chunk[{chunkCount}]: type={typeStr}(0x{chunkType:X8}) len={chunkLength} pos={st.Position - 8}");
-                    if (chunkType == IEND_MAGIC) flag = false;
+                    // IEND as raw bytes: 0x49='I',0x45='E',0x4E='N',0x44='D'
+                    if (heightBytes[0] == 0x49 && heightBytes[1] == 0x45 &&
+                        heightBytes[2] == 0x4E && heightBytes[3] == 0x44)
+                        flag = false;
                     if (chunkLength + 4 > st.Length - st.Position)
                     {
                         st.Seek(position, SeekOrigin.Begin);
-                        Logger.LogDebug($"GetPngSize: overflow chunkType=0x{chunkType:X8}({typeStr}) chunkLen={chunkLength} remaining={st.Length - st.Position}");
                         return 0L;
                     }
                     st.Seek(chunkLength + 4, SeekOrigin.Current);
                 }
-                    st.Seek(chunkLength + 4, SeekOrigin.Current);
-                    if (chunkType == IEND_MAGIC) Logger.LogDebug($"GetPngSize: found IEND at pos={st.Position}");
-                }
 
                 long num = st.Position - position;
                 st.Seek(position, SeekOrigin.Begin);
-                Logger.LogDebug($"GetPngSize: success, size={num}");
                 return num;
             }
-            catch (EndOfStreamException e)
+            catch (EndOfStreamException)
             {
                 st.Seek(position, SeekOrigin.Begin);
-                Logger.LogDebug($"GetPngSize: EndOfStreamException at pos={st.Position}: {e.Message}");
                 return 0L;
             }
         }
