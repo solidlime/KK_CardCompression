@@ -58,7 +58,7 @@ jobs:
 
             | ファイル | 説明 | 前提 |
             |----------|------|------|
-            | `KK_CardCompression.exe` | デスクトップ バッチツール | .NET 8 Desktop Runtime |
+            | `KKCC.exe` | デスクトップ バッチツール | .NET 8 Desktop Runtime |
             | `KK_CardCompression.dll` | BepInEx プラグイン（自動圧縮／解凍） | BepInEx 5.4.x |
 
             ### 変更履歴
@@ -78,10 +78,10 @@ jobs:
 
             **デスクトップアプリ**:
             1. [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) をインストール
-            2. `KK_CardCompression.exe` を実行
+            2. `KKCC.exe` を実行
             3. PNG ファイルをドロップ → 圧縮／解凍
           files: |
-            publish-desktop/KK_CardCompression.exe
+            publish-desktop/KKCC.exe
             src/Plugin/bin/Release/KK_CardCompression.dll
           draft: false
           prerelease: false

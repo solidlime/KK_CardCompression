@@ -41,7 +41,7 @@ jobs:
       - name: Verify outputs
         shell: pwsh
         run: |
-          $exe = "publish-desktop/KK_CardCompression.exe"
+          $exe = "publish-desktop/KKCC.exe"
           $dll = "src/Plugin/bin/Release/KK_CardCompression.dll"
           if (-not (Test-Path $exe)) {
             Write-Host "::error::Desktop EXE not found: $exe"
@@ -57,7 +57,7 @@ jobs:
           echo "" >> $env:GITHUB_STEP_SUMMARY
           echo "| Artifact | Size |" >> $env:GITHUB_STEP_SUMMARY
           echo "|----------|------|" >> $env:GITHUB_STEP_SUMMARY
-          echo "| KK_CardCompression.exe | ${exeSize} MB |" >> $env:GITHUB_STEP_SUMMARY
+          echo "| KKCC.exe | ${exeSize} MB |" >> $env:GITHUB_STEP_SUMMARY
           echo "| KK_CardCompression.dll | ${dllSize} KB |" >> $env:GITHUB_STEP_SUMMARY
 
       - name: Upload artifacts
@@ -65,6 +65,6 @@ jobs:
         with:
           name: KKCC-all
           path: |
-            publish-desktop/KK_CardCompression.exe
+            publish-desktop/KKCC.exe
             src/Plugin/bin/Release/KK_CardCompression.dll
           retention-days: 7
