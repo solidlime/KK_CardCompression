@@ -13,7 +13,6 @@
     <PackageReference Include="IllusionLibs.Koikatu.Assembly-CSharp" Version="2019.4.27.4" />
     <PackageReference Include="IllusionLibs.Koikatu.Assembly-CSharp-firstpass" Version="2019.4.27.4" />
     <PackageReference Include="IllusionLibs.Koikatu.UnityEngine" Version="5.6.2.4" />
-    <PackageReference Include="ILRepack" Version="2.0.18" />
     <PackageReference Include="LZMA-SDK" Version="19.0.0" />
   </ItemGroup>
 
@@ -22,20 +21,8 @@
     <EmbeddedResource Include="Resources\unzip_watermark.png" />
   </ItemGroup>
 
-  <!-- Copy SevenZip.dll (LZMA-SDK) to output for ILRepack -->
-  <Target Name="CopyLzmaForRepack" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+  <!-- Copy SevenZip.dll (LZMA-SDK) to output for BepInEx plugin deployment -->
+  <Target Name="CopySevenZip" AfterTargets="Build">
     <Copy SourceFiles="$(NuGetPackageRoot)lzma-sdk\19.0.0\lib\net20\SevenZip.dll" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
-  </Target>
-
-  <!-- ILRepack: merge SevenZip.dll into output DLL -->
-  <Target Name="ILRepack" AfterTargets="CopyLzmaForRepack" Condition="'$(Configuration)' == 'Release'">
-    <PropertyGroup>
-      <ILRepackExe>$(NuGetPackageRoot)ilrepack\2.0.18\tools\ILRepack.exe</ILRepackExe>
-      <IllusionLib>$(NuGetPackageRoot)illusionlibs.koikatu.assembly-csharp\2019.4.27.4\lib\net35</IllusionLib>
-      <UnityLib>$(NuGetPackageRoot)illusionlibs.koikatu.unityengine\5.6.2.4\lib\net35</UnityLib>
-      <GameBepInEx>G:\MyGAME\Koikatsu\BepInEx\core</GameBepInEx>
-      <LibPaths>/lib:"$(IllusionLib)" /lib:"$(UnityLib)" /lib:"$(GameBepInEx)"</LibPaths>
-    </PropertyGroup>
-    <Exec Command="&quot;$(ILRepackExe)&quot; $(LibPaths) /target:library /internalize /out:&quot;$(OutputPath)KK_SaveLoadCompression.dll&quot; &quot;$(OutputPath)KK_SaveLoadCompression.dll&quot; &quot;$(OutputPath)SevenZip.dll&quot;" />
   </Target>
 </Project>
