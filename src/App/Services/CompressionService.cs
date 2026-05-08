@@ -64,67 +64,72 @@ namespace KK_CardCompression.Services
         public static void CompressFile(string inputPath, string outputPath,
                                         IProgress<double>? progress = null)
         {
-            using var inFs  = new FileStream(inputPath,  FileMode.Open,   FileAccess.Read,  FileShare.ReadWrite);
-            using var outFs = new FileStream(outputPath, FileMode.Create,  FileAccess.Write);
-            using var br    = new BinaryReader(inFs,  Encoding.UTF8, leaveOpen: true);
-            using var bw    = new BinaryWriter(outFs, Encoding.UTF8, leaveOpen: true);
-
-            progress?.Report(0.01);
-
-            byte[] pngData   = LoadPngBytes(br);
-            long   extraStart = inFs.Position;
-
-            progress?.Report(0.05);
-
-            // トークン種別を判定（カーソルはextraStartに戻る）
-            string? token = GuessToken(br);
-            if (token == null)
-                throw new InvalidDataException("Koikatsuのファイル形式を認識できませんでした。");
-
-            // 既に圧縮済みなら例外
-            inFs.Seek(extraStart, SeekOrigin.Begin);
-            if (GuessCompressed(br))
-                throw new InvalidOperationException("このファイルは既に圧縮されています。");
-
-            inFs.Seek(extraStart, SeekOrigin.Begin);
-
-            // PNG を出力
-            bw.Write(pngData);
-
-            // 圧縮マーカー + トークンを出力（形式はトークン種別で異なる）
-            if (token == KkToken.StudioToken)
-                bw.Write(new Version(101, 0, 0, 0).ToString());
-            else
-                bw.Write(101);
-            bw.Write(token);
-            progress?.Report(0.12);
-
-            // 残りデータ（元のマーカー + トークン + ゲームデータ）を読み取る
-            byte[] extraData;
-            using (var msExtra = new MemoryStream())
             {
-                inFs.CopyTo(msExtra);
-                extraData = msExtra.ToArray();
-            }
+                using var inFs  = new FileStream(inputPath,  FileMode.Open,   FileAccess.Read,  FileShare.ReadWrite);
+                using var outFs = new FileStream(outputPath, FileMode.Create,  FileAccess.Write);
+                using var br    = new BinaryReader(inFs,  Encoding.UTF8, leaveOpen: true);
+                using var bw    = new BinaryWriter(outFs, Encoding.UTF8, leaveOpen: true);
 
-            // LZMA 圧縮
-            using var msCompressed = new MemoryStream();
-            LzmaCompress(new MemoryStream(extraData), msCompressed, progress, 0.12, 0.95);
+                progress?.Report(0.01);
 
-            // 圧縮後の検証（compress → decompress → compare）
-            msCompressed.Seek(0, SeekOrigin.Begin);
-            using var msDecompressed = new MemoryStream();
-            LzmaDecompress(msCompressed, msDecompressed);
-            msDecompressed.Seek(0, SeekOrigin.Begin);
+                byte[] pngData   = LoadPngBytes(br);
+                long   extraStart = inFs.Position;
 
-            if (msDecompressed.Length != extraData.Length)
-                throw new InvalidDataException("圧縮後の検証に失敗しました（サイズ不一致）。");
+                progress?.Report(0.05);
 
-            if (!extraData.AsSpan().SequenceEqual(msDecompressed.ToArray().AsSpan()))
-                throw new InvalidDataException("圧縮後の検証に失敗しました（データ不一致）。");
+                // トークン種別を判定（カーソルはextraStartに戻る）
+                string? token = GuessToken(br);
+                if (token == null)
+                    throw new InvalidDataException("Koikatsuのファイル形式を認識できませんでした。");
 
-            msCompressed.Seek(0, SeekOrigin.Begin);
-            bw.Write(msCompressed.ToArray());
+                // 既に圧縮済みなら例外
+                inFs.Seek(extraStart, SeekOrigin.Begin);
+                if (GuessCompressed(br))
+                    throw new InvalidOperationException("このファイルは既に圧縮されています。");
+
+                inFs.Seek(extraStart, SeekOrigin.Begin);
+
+                // PNG を出力
+                bw.Write(pngData);
+
+                // 圧縮マーカー + トークンを出力（形式はトークン種別で異なる）
+                if (token == KkToken.StudioToken)
+                    bw.Write(new Version(101, 0, 0, 0).ToString());
+                else
+                    bw.Write(101);
+                bw.Write(token);
+                progress?.Report(0.12);
+
+                // 残りデータ（元のマーカー + トークン + ゲームデータ）を読み取る
+                byte[] extraData;
+                using (var msExtra = new MemoryStream())
+                {
+                    inFs.CopyTo(msExtra);
+                    extraData = msExtra.ToArray();
+                }
+
+                // LZMA 圧縮
+                using var msCompressed = new MemoryStream();
+                LzmaCompress(new MemoryStream(extraData), msCompressed, progress, 0.12, 0.95);
+
+                // 圧縮後の検証（compress → decompress → compare）
+                msCompressed.Seek(0, SeekOrigin.Begin);
+                using var msDecompressed = new MemoryStream();
+                LzmaDecompress(msCompressed, msDecompressed);
+                msDecompressed.Seek(0, SeekOrigin.Begin);
+
+                if (msDecompressed.Length != extraData.Length)
+                    throw new InvalidDataException("圧縮後の検証に失敗しました（サイズ不一致）。");
+
+                if (!extraData.AsSpan().SequenceEqual(msDecompressed.ToArray().AsSpan()))
+                    throw new InvalidDataException("圧縮後の検証に失敗しました（データ不一致）。");
+
+                msCompressed.Seek(0, SeekOrigin.Begin);
+                bw.Write(msCompressed.ToArray());
+            } // streams flushed and closed here
+
+            // Post-write verification: compressed output should be a valid PNG
+            ValidateCompressedOutput(outputPath);
 
             progress?.Report(1.0);
         }
@@ -137,53 +142,113 @@ namespace KK_CardCompression.Services
         public static void DecompressFile(string inputPath, string outputPath,
                                           IProgress<double>? progress = null)
         {
-            using var inFs  = new FileStream(inputPath,  FileMode.Open,   FileAccess.Read,  FileShare.ReadWrite);
-            using var outFs = new FileStream(outputPath, FileMode.Create,  FileAccess.Write);
-            using var br    = new BinaryReader(inFs,  Encoding.UTF8, leaveOpen: true);
-            using var bw    = new BinaryWriter(outFs, Encoding.UTF8, leaveOpen: true);
-
-            progress?.Report(0.01);
-
-            byte[] pngData = LoadPngBytes(br);
-            progress?.Report(0.08);
-
-            // マーカーを読み取る（int32 か Version 文字列か判定）
-            long markerPos = inFs.Position;
-            int peekMarker = br.ReadInt32();
-            inFs.Seek(markerPos, SeekOrigin.Begin);
-
-            if (peekMarker == KkFormatMarker.Raw || peekMarker == KkFormatMarker.Lzma)
             {
-                int marker = br.ReadInt32();
-                if (marker == KkFormatMarker.Raw)
-                    throw new InvalidDataException("このファイルは圧縮されていません。");
-                if (marker != KkFormatMarker.Lzma)
-                    throw new InvalidDataException("未知の圧縮マーカーです。");
-            }
-            else
-            {
-                string versionStr = br.ReadString();
-                if (!Version.TryParse(versionStr, out var v))
-                    throw new InvalidDataException("圧縮マーカーを認識できませんでした。");
+                using var inFs  = new FileStream(inputPath,  FileMode.Open,   FileAccess.Read,  FileShare.ReadWrite);
+                using var outFs = new FileStream(outputPath, FileMode.Create,  FileAccess.Write);
+                using var br    = new BinaryReader(inFs,  Encoding.UTF8, leaveOpen: true);
+                using var bw    = new BinaryWriter(outFs, Encoding.UTF8, leaveOpen: true);
 
-                if (v.Major == KkFormatMarker.Raw)
-                    throw new InvalidDataException("このファイルは圧縮されていません。");
-                if (v.Major != KkFormatMarker.Lzma)
-                    throw new InvalidDataException("未知の圧縮マーカーです。");
-            }
+                progress?.Report(0.01);
 
-            // トークンをスキップ
-            br.ReadString();
-            progress?.Report(0.12);
+                byte[] pngData = LoadPngBytes(br);
+                progress?.Report(0.08);
 
-            // PNG を出力
-            bw.Write(pngData);
-            bw.Flush();
+                // マーカーを読み取る（int32 か Version 文字列か判定）
+                long markerPos = inFs.Position;
+                int peekMarker = br.ReadInt32();
+                inFs.Seek(markerPos, SeekOrigin.Begin);
 
-            // LZMA 展開（LZMAデータの中には元のマーカー100+トークン+ゲームデータが含まれる）
-            LzmaDecompress(inFs, outFs, progress);
+                if (peekMarker == KkFormatMarker.Raw || peekMarker == KkFormatMarker.Lzma)
+                {
+                    int marker = br.ReadInt32();
+                    if (marker == KkFormatMarker.Raw)
+                        throw new InvalidDataException("このファイルは圧縮されていません。");
+                    if (marker != KkFormatMarker.Lzma)
+                        throw new InvalidDataException("未知の圧縮マーカーです。");
+                }
+                else
+                {
+                    string versionStr = br.ReadString();
+                    if (!Version.TryParse(versionStr, out var v))
+                        throw new InvalidDataException("圧縮マーカーを認識できませんでした。");
+
+                    if (v.Major == KkFormatMarker.Raw)
+                        throw new InvalidDataException("このファイルは圧縮されていません。");
+                    if (v.Major != KkFormatMarker.Lzma)
+                        throw new InvalidDataException("未知の圧縮マーカーです。");
+                }
+
+                // トークンをスキップ
+                br.ReadString();
+                progress?.Report(0.12);
+
+                // PNG を出力
+                bw.Write(pngData);
+                bw.Flush();
+
+                // LZMA 展開（LZMAデータの中には元のマーカー100+トークン+ゲームデータが含まれる）
+                LzmaDecompress(inFs, outFs, progress);
+            } // streams flushed and closed here
+
+            // Post-decompression validation
+            ValidateDecompressedOutput(outputPath);
 
             progress?.Report(1.0);
+        }
+
+        // ---------------------------------------------------------------
+        // Post-decompression / post-compression validation
+        // ---------------------------------------------------------------
+
+        /// <summary>
+        /// Validate decompressed output file has correct PNG header.
+        /// Reads only the first 8 bytes for minimal performance impact.
+        /// </summary>
+        private static void ValidateDecompressedOutput(string outputPath)
+        {
+            try
+            {
+                using var fs = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                byte[] header = new byte[8];
+                if (fs.Read(header, 0, 8) < 8)
+                    throw new InvalidDataException("Decompressed file is too short (missing PNG header).");
+                byte[] expectedPng = new byte[8] { 137, 80, 78, 71, 13, 10, 26, 10 };
+                for (int i = 0; i < 8; i++)
+                {
+                    if (header[i] != expectedPng[i])
+                        throw new InvalidDataException("Decompressed file has invalid PNG signature (corrupted or wrong format).");
+                }
+            }
+            catch (InvalidDataException) { throw; }
+            catch (Exception ex)
+            {
+                throw new InvalidDataException($"Failed to validate decompressed file: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Validate compressed output file has correct PNG header.
+        /// Reads only the first 8 bytes for minimal performance impact.
+        /// </summary>
+        private static void ValidateCompressedOutput(string outputPath)
+        {
+            try
+            {
+                using var fs = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                byte[] header = new byte[8];
+                if (fs.Read(header, 0, 8) < 8)
+                    throw new InvalidDataException("Compressed file is too short.");
+                byte[] expectedPng = new byte[8] { 137, 80, 78, 71, 13, 10, 26, 10 };
+                bool validSig = true;
+                for (int i = 0; i < 8; i++) { if (header[i] != expectedPng[i]) { validSig = false; break; } }
+                if (!validSig)
+                    throw new InvalidDataException("Compressed file has invalid PNG signature.");
+            }
+            catch (InvalidDataException) { throw; }
+            catch (Exception ex)
+            {
+                throw new InvalidDataException($"Failed to validate compressed file: {ex.Message}", ex);
+            }
         }
 
         // ---------------------------------------------------------------

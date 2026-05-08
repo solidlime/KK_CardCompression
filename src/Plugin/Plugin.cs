@@ -348,6 +348,30 @@ namespace KK_CardCompression
 
                 if (0 != loadResult)
                 {
+                    // Post-decompression validation: verify PNG signature
+                    try
+                    {
+                        byte[] header = new byte[8];
+                        using (var fs = new FileStream(tmpPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                            fs.Read(header, 0, 8);
+                        byte[] expectedPng = new byte[8] { 137, 80, 78, 71, 13, 10, 26, 10 };
+                        for (int i = 0; i < 8; i++)
+                        {
+                            if (header[i] != expectedPng[i])
+                            {
+                                Logger.LogError($"Decompressed file validation FAILED: invalid PNG signature in {fileName}");
+                                File.Delete(tmpPath);
+                                return null;
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError($"Decompressed file validation error: {ex.Message}");
+                        File.Delete(tmpPath);
+                        return null;
+                    }
+
                     long decompressedSize = new FileInfo(tmpPath).Length;
                     if (Time.time - startTime == 0)
                     {
