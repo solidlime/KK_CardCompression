@@ -8,6 +8,7 @@ namespace KK_CardCompression.Services
     {
         public string LastOutputDirectory { get; set; } = string.Empty;
         public bool PreviewEnabled { get; set; } = true;
+        public bool LowCpuPriority { get; set; } = false;
     }
 
     public static class IniSettingsService
@@ -43,6 +44,10 @@ namespace KK_CardCompression.Services
                 if (map.TryGetValue("PreviewEnabled", out var prev)
                     && bool.TryParse(prev, out var pe))
                     settings.PreviewEnabled = pe;
+
+                if (map.TryGetValue("LowCpuPriority", out var lcp)
+                    && bool.TryParse(lcp, out var lc))
+                    settings.LowCpuPriority = lc;
             }
             catch (Exception ex)
             {
@@ -61,6 +66,7 @@ namespace KK_CardCompression.Services
                 "[Settings]",
                 $"LastOutputDirectory={settings.LastOutputDirectory}",
                 $"PreviewEnabled={settings.PreviewEnabled}",
+                $"LowCpuPriority={settings.LowCpuPriority}",
                 string.Empty,
             });
 

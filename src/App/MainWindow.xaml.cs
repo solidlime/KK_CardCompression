@@ -40,6 +40,7 @@ namespace KK_CardCompression
         private string _outputDirectory = string.Empty;
         private bool _isSyncingScroll;
         private bool _isPreviewEnabled = true;
+        private bool _isLowCpuPriority;
         private bool _isInitialized;
 
         public MainWindow()
@@ -67,6 +68,9 @@ namespace KK_CardCompression
             _isPreviewEnabled = settings.PreviewEnabled;
             TglPreviewEnabled.IsChecked = _isPreviewEnabled;
 
+            _isLowCpuPriority = settings.LowCpuPriority;
+            TglLowCpu.IsChecked = _isLowCpuPriority;
+
             _isInitialized = true;
         }
 
@@ -77,6 +81,7 @@ namespace KK_CardCompression
             {
                 LastOutputDirectory  = _outputDirectory,
                 PreviewEnabled       = _isPreviewEnabled,
+                LowCpuPriority       = _isLowCpuPriority,
             });
         }
 
@@ -85,6 +90,12 @@ namespace KK_CardCompression
             _isPreviewEnabled = TglPreviewEnabled.IsChecked == true;
             if (!_isPreviewEnabled && PreviewPopup != null)
                 PreviewPopup.IsOpen = false;
+            SaveSettings();
+        }
+
+        private void TglLowCpu_Changed(object sender, RoutedEventArgs e)
+        {
+            _isLowCpuPriority = TglLowCpu.IsChecked == true;
             SaveSettings();
         }
 
@@ -470,6 +481,10 @@ namespace KK_CardCompression
             TxtStats.Text = string.Empty;
 
             SetProcessingState(true);
+
+            if (TglLowCpu.IsChecked == true)
+                Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.BelowNormal;
+
             _cts = new CancellationTokenSource();
             var token = _cts.Token;
 
@@ -551,6 +566,9 @@ namespace KK_CardCompression
             }
 
             _stopwatch.Stop();
+
+            Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.Normal;
+
             SetProcessingState(false);
 
             int successCount = counters[0];

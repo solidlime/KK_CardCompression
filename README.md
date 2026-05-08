@@ -99,12 +99,12 @@ dotnet build KK_CardCompression.sln -c Release
 
 | セクション | キー | デフォルト | 説明 |
 |-----------|------|-----------|------|
-| Config | Enable | false | プラグイン全体の有効／無効 |
+| Config | Enable | true | プラグイン全体の有効／無効 |
 | Settings | Delete the original file | true | 圧縮後に元ファイルを上書き |
-| Settings | Display compression message on screen | false | 画面に圧縮メッセージ表示 |
+| Settings | Display compression message on screen | true | 画面に圧縮メッセージ表示 |
 | Settings | Skip bytes compare when saving | false | 保存時のバイト検証をスキップ |
-| Enable at Where | Character | false | キャラ保存時に圧縮 |
-| Enable at Where | Coordinate | false | コーデ保存時に圧縮 |
+| Enable at Where | Character | true | キャラ保存時に圧縮 |
+| Enable at Where | Coordinate | true | コーデ保存時に圧縮 |
 | Enable at Where | Studio Scene | true | スタジオシーン保存時に圧縮 |
 
 ### デスクトップアプリ
@@ -112,6 +112,7 @@ dotnet build KK_CardCompression.sln -c Release
 2. .NET 8 Desktop Runtime をインストール
 3. アプリ起動後、PNG ファイル／フォルダをドラッグ＆ドロップ
 4. 「圧縮」または「解凍」をクリック
+5. 必要に応じて「低CPU優先度」トグルをON（圧縮中のCPU負荷を抑制）
 
 ## 相互運用性
 
