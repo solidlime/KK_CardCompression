@@ -31,7 +31,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Resource Include="..\..\Assets\app-icon.png"/>
+    <Resource Include="..\..\Assets\app-icon.png">
+      <Link>Assets\app-icon.png</Link>
+    </Resource>
     <None Include="..\..\Assets\app-icon.ico"/>
   </ItemGroup>
 
