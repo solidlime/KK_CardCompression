@@ -177,7 +177,14 @@ namespace KK_CardCompression.PngCompression
                     switch (token)
                     {
                         case Token.StudioToken:
-                            checkfail = !Version.TryParse(binaryReader.ReadString(), out Version v) || !v.Equals(new Version(101, 0, 0, 0));
+                            try
+                            {
+                                checkfail = !new Version(binaryReader.ReadString()).Equals(new Version(101, 0, 0, 0));
+                            }
+                            catch
+                            {
+                                checkfail = true;
+                            }
                             break;
                         case Token.CoordinateToken:
                         default:
@@ -267,9 +274,15 @@ namespace KK_CardCompression.PngCompression
                     default:
                         binaryReader.BaseStream.Seek(position, SeekOrigin.Begin);
                         string st = binaryReader.ReadString();
-                        if (Version.TryParse(st, out Version version))
+                        try
+                        {
+                            Version version = new Version(st);
                             return version.Major == 101;
-                        return false;
+                        }
+                        catch
+                        {
+                            return false;
+                        }
                 }
             }
             catch
