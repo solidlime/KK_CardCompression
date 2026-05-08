@@ -183,7 +183,7 @@ namespace KK_CardCompression
                 Logger.LogDebug($"Clean Path: {cleanedPath}");
             }
 
-            byte[] pngData = ImageHelper.LoadPngBytesSafe(path);
+            byte[] pngData = null; // Always let Save() load from its own fresh FileStream
 
             Thread newThread = new Thread(() => ExecuteSaveThread(path, cleanedPath, compressedPath, pngData, token));
             newThread.Start();
