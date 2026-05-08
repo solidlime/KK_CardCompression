@@ -119,4 +119,6 @@ KK_CardCompression - コイカツ用キャラカード/シーンデータ/衣装
 - ✅ ConvertCharaFilePath 引数バグ修正（3引数→3引数で呼出）
 - ✅ LoadCharaFileKoikatsuPrefix 削除（KK非存在メソッド）
 - ✅ ChaFile.CheckData パッチ削除（KK非存在メソッド）
+- ✅ ImageHelper Unity依存分離 → UnityImageHelper（TypeLoadException修正）
+- ✅ MakeWatermarkPic try-catch フォールバック追加
 - 🔲 大規模ベンチマーク（568MBシーンファイル）

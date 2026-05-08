@@ -159,8 +159,20 @@ namespace SaveLoadCompression
                 Logger.LogDebug($"Clean Path: {cleanedPath}");
             }
 
-            byte[] pngData = MakeWatermarkPic(ImageHelper.LoadPngBytes(path), token, true);
-            byte[] unzipPngData = MakeWatermarkPic(ImageHelper.LoadPngBytes(path), token, false);
+            byte[] pngData;
+            byte[] unzipPngData;
+            try
+            {
+                pngData = MakeWatermarkPic(ImageHelper.LoadPngBytes(path), token, true);
+                unzipPngData = MakeWatermarkPic(ImageHelper.LoadPngBytes(path), token, false);
+            }
+            catch (TypeLoadException)
+            {
+                Logger.LogWarning("Unity types unavailable, skipping watermark");
+                byte[] rawPng = ImageHelper.LoadPngBytes(path);
+                pngData = rawPng;
+                unzipPngData = rawPng;
+            }
 
             Thread newThread = new Thread(saveThread);
             newThread.Start();
@@ -333,11 +345,11 @@ namespace SaveLoadCompression
             Texture2D watermark;
             if (zip)
             {
-                watermark = ImageHelper.LoadDllResourceToTexture2D($"SaveLoadCompression.Resources.zip_watermark.png");
+                watermark = UnityImageHelper.LoadDllResourceToTexture2D($"SaveLoadCompression.Resources.zip_watermark.png");
             }
             else
             {
-                watermark = ImageHelper.LoadDllResourceToTexture2D($"SaveLoadCompression.Resources.unzip_watermark.png");
+                watermark = UnityImageHelper.LoadDllResourceToTexture2D($"SaveLoadCompression.Resources.unzip_watermark.png");
             }
             float scaleTimes = new PngCompression.PngCompression().GetScaleTimes(token);
             watermark = watermark.Scale(Convert.ToInt32(png.width * scaleTimes));

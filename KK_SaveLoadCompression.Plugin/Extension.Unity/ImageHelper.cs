@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Extension
 {
-    public static partial class ImageHelper
+    public static class UnityImageHelper
     {
         public static Sprite LoadNewSprite(string FilePath, int width = -1, int height = -1, float PixelsPerUnit = 100.0f)
         {
@@ -41,7 +41,7 @@ namespace Extension
             Texture2D texture = new Texture2D(2, 2, TextureFormat.ARGB32, false);
             using (Stream myStream = myAssembly.GetManifestResourceStream(FilePath))
             {
-                if (texture.LoadImage(ReadToEnd(myStream)))
+                if (texture.LoadImage(ImageHelper.ReadToEnd(myStream)))
                 {
                     if ((width > 0 && texture.width != width) || (height > 0 && texture.height != height))
                     {
