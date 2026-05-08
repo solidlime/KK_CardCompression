@@ -284,7 +284,7 @@ namespace KK_CardCompression.Services
         {
             var props = new object[]
             {
-                1 << 16,           // DictionarySize: 64 KiB (KK_SaveLoadCompression プラグインのデフォルト)
+                1 << 26,           // DictionarySize: 64 MiB (matches DLL plugin)
                 2,                 // PosStateBits
                 3,                 // LitContextBits
                 0,                 // LitPosBits
