@@ -27,9 +27,6 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Restore
-        run: dotnet restore KK_CardCompression.sln
-
       - name: Build Plugin (net48)
         run: dotnet build src/Plugin/KK_CardCompression.csproj -c Release
 
