@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
     ResourceDictionaryLocation.SourceAssembly
 )]
 
-[assembly: AssemblyTitle("KK_CardCompression")]
+[assembly: AssemblyTitle("KKCC")]
 [assembly: AssemblyDescription("KKCC - Koikatsu Card Compression")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]

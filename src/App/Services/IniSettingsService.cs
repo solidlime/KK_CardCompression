@@ -14,7 +14,7 @@ namespace KK_CardCompression.Services
     public static class IniSettingsService
     {
         private static readonly string s_iniPath =
-            Path.Combine(AppContext.BaseDirectory, "KK_CardCompression.ini");
+            Path.Combine(AppContext.BaseDirectory, "KKCC.ini");
 
         public static AppSettings Load()
         {
