@@ -6,6 +6,7 @@ namespace KK_CardCompression.Models
     {
         private int _progressPercent;
         private bool _isProcessingComplete;
+        private bool _isSkipped;
 
         public long OriginalSizeBytes { get; private set; }
         public long OutputSizeBytes   => File.Exists(FullPath) ? new FileInfo(FullPath).Length : 0;
@@ -38,10 +39,23 @@ namespace KK_CardCompression.Models
             }
         }
 
+        public bool IsSkipped
+        {
+            get => _isSkipped;
+            set
+            {
+                if (_isSkipped == value) return;
+                _isSkipped = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CompressionRatioText));
+            }
+        }
+
         public string CompressionRatioText
         {
             get
             {
+                if (IsSkipped) return "スキップ";
                 if (!IsProcessingComplete) return "—";
                 if (OriginalSizeBytes <= 0) return "—";
                 double ratio = (1.0 - (double)OutputSizeBytes / OriginalSizeBytes) * 100.0;

@@ -533,6 +533,7 @@ namespace KK_CardCompression
                     if (result.Skipped)
                     {
                         Interlocked.Increment(ref counters[3]);
+                        entries[i].IsSkipped = true;
                         // ProgressPercent stays 0, IsProcessingComplete stays false
                     }
                     else if (result.Success)
