@@ -506,7 +506,7 @@ namespace KK_CardCompression
 
             int maxConcurrency = Math.Max(1, Environment.ProcessorCount);
             using var semaphore = new SemaphoreSlim(maxConcurrency, maxConcurrency);
-            var counters = new int[3];
+            var counters = new int[4];
 
             var tasks = files.Select(async (source, i) =>
             {
@@ -530,7 +530,12 @@ namespace KK_CardCompression
                         return;
                     }
 
-                    if (result.Success)
+                    if (result.Skipped)
+                    {
+                        Interlocked.Increment(ref counters[3]);
+                        // ProgressPercent stays 0, IsProcessingComplete stays false
+                    }
+                    else if (result.Success)
                     {
                         Interlocked.Increment(ref counters[0]);
                         entries[i].ProgressPercent = 100;
@@ -573,25 +578,27 @@ namespace KK_CardCompression
 
             int successCount = counters[0];
             int failCount = counters[1];
-            UpdateStats(files, successCount, failCount);
+            int skipCount = counters[3];
+            UpdateStats(files, successCount, failCount, skipCount);
             TxtStatus.Text = token.IsCancellationRequested
-                ? $"中止しました ({successCount}/{total} 完了)"
-                : $"処理完了 ({successCount}/{total} 成功)";
+                ? $"中止しました ({successCount}/{total} 完了, {skipCount} スキップ)"
+                : $"処理完了 ({successCount}/{total} 成功, {skipCount} スキップ)";
         }
 
-        private record ProcessResult(bool Success, string? OutputPath, string? ErrorMessage = null);
+        private record ProcessResult(bool Success, string? OutputPath, string? ErrorMessage = null, bool Skipped = false);
 
         private ProcessResult ProcessSingleFile(string inputPath, bool compress,
                                                 IProgress<double> progress)
         {
             string backupPath = inputPath + ".bak";
+            string? outputPath = null;
             try
             {
                 File.Copy(inputPath, backupPath, true);
                 progress.Report(0.02);
 
                 string relativePath = GetRelativePath(inputPath, _inputFiles.Select(f => f.FullPath).ToList());
-                string outputPath = Path.Combine(_outputDirectory, relativePath);
+                outputPath = Path.Combine(_outputDirectory, relativePath);
 
                 string? outputDir = Path.GetDirectoryName(outputPath);
                 if (!string.IsNullOrWhiteSpace(outputDir) && !Directory.Exists(outputDir))
@@ -600,12 +607,22 @@ namespace KK_CardCompression
                 if (compress)
                 {
                     if (CompressionService.IsCompressed(inputPath))
-                        File.Copy(inputPath, outputPath, true);
+                    {
+                        progress.Report(1.0);
+                        return new ProcessResult(true, null, Skipped: true);
+                    }
                     else
                         CompressionService.CompressFile(inputPath, outputPath, progress);
                 }
                 else
+                {
+                    if (!CompressionService.IsCompressed(inputPath))
+                    {
+                        progress.Report(1.0);
+                        return new ProcessResult(true, null, Skipped: true);
+                    }
                     CompressionService.DecompressFile(inputPath, outputPath, progress);
+                }
 
                 if (!File.Exists(outputPath))
                     throw new InvalidOperationException("出力ファイルが作成されませんでした。");
@@ -626,6 +643,8 @@ namespace KK_CardCompression
                     File.Copy(backupPath, inputPath, true);
                     File.Delete(backupPath);
                 }
+
+                try { if (outputPath != null && File.Exists(outputPath)) File.Delete(outputPath); } catch { }
 
                 return new ProcessResult(false, null, ex.Message);
             }
@@ -664,7 +683,7 @@ namespace KK_CardCompression
                 : Path.GetFileName(fullPath);
         }
 
-        private void UpdateStats(List<FileEntry> files, int successCount, int failCount)
+        private void UpdateStats(List<FileEntry> files, int successCount, int failCount, int skipCount)
         {
             long totalInput = files.Sum(f => f.SizeBytes);
             long totalOutput = _outputFiles.Where(f => f.ProgressPercent == 100).Sum(f => f.OutputSizeBytes);
@@ -677,7 +696,7 @@ namespace KK_CardCompression
                 ? $"削減率 {reductionRate:F1}%"
                 : $"増加率 {Math.Abs(reductionRate):F1}%";
 
-            TxtStats.Text = $"成功 {successCount} / 失敗 {failCount} | {FormatSize(totalInput)} -> {FormatSize(totalOutput)} | {ratioText} | {_stopwatch.Elapsed.TotalSeconds:F2}s";
+            TxtStats.Text = $"成功 {successCount} / 失敗 {failCount} / スキップ {skipCount} | {FormatSize(totalInput)} -> {FormatSize(totalOutput)} | {ratioText} | {_stopwatch.Elapsed.TotalSeconds:F2}s";
         }
 
         private static string FormatSize(long bytes)

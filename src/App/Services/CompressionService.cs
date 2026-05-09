@@ -141,17 +141,16 @@ namespace KK_CardCompression.Services
         /// 出力形式: [PNGデータ] [元のマーカー100] [トークン] [ゲームデータ]
         /// </summary>
         public static void DecompressFile(string inputPath, string outputPath,
-                                          IProgress<double>? progress = null)
+                                           IProgress<double>? progress = null)
         {
+            byte[] pngData;
+            // Phase 1: Read input and check compression BEFORE opening output stream
+            using (var inFs  = new FileStream(inputPath,  FileMode.Open,   FileAccess.Read,  FileShare.ReadWrite))
+            using (var br    = new BinaryReader(inFs,  Encoding.UTF8, leaveOpen: true))
             {
-                using var inFs  = new FileStream(inputPath,  FileMode.Open,   FileAccess.Read,  FileShare.ReadWrite);
-                using var outFs = new FileStream(outputPath, FileMode.Create,  FileAccess.Write);
-                using var br    = new BinaryReader(inFs,  Encoding.UTF8, leaveOpen: true);
-                using var bw    = new BinaryWriter(outFs, Encoding.UTF8, leaveOpen: true);
-
                 progress?.Report(0.01);
 
-                byte[] pngData = LoadPngBytes(br);
+                pngData = LoadPngBytes(br);
                 progress?.Report(0.08);
 
                 // マーカーを読み取る（int32 か Version 文字列か判定）
@@ -183,12 +182,17 @@ namespace KK_CardCompression.Services
                 br.ReadString();
                 progress?.Report(0.12);
 
-                // PNG を出力
-                bw.Write(pngData);
-                bw.Flush();
+                // Phase 2: Now that compression is confirmed, open output stream
+                using (var outFs = new FileStream(outputPath, FileMode.Create, FileAccess.Write))
+                using (var bw    = new BinaryWriter(outFs, Encoding.UTF8, leaveOpen: true))
+                {
+                    // PNG を出力
+                    bw.Write(pngData);
+                    bw.Flush();
 
-                // LZMA 展開（LZMAデータの中には元のマーカー100+トークン+ゲームデータが含まれる）
-                LzmaDecompress(inFs, outFs, progress);
+                    // LZMA 展開（LZMAデータの中には元のマーカー100+トークン+ゲームデータが含まれる）
+                    LzmaDecompress(inFs, outFs, progress);
+                }
             } // streams flushed and closed here
 
             // Post-decompression validation
