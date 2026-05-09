@@ -1,7 +1,7 @@
 # KK Card Compression
 
 <p align="center">
-  <img src="Assets/kkcc.png" alt="KKCC" width="160" />
+  <img src="Assets/kkcc.png" alt="KKCC" width="400" />
 </p>
 
 Koikatsu / Koikatsu Party のカード・シーン PNG ファイルを LZMA でロスレス圧縮／解凍するツール群。
