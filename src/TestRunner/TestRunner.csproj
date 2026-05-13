@@ -10,15 +10,7 @@
     <Compile Include="TestRunner.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="KK_CardCompression">
-      <HintPath>..\bin\Debug\net8.0-windows\KKCC.dll</HintPath>
-    </Reference>
-    <Reference Include="ZstdSharp">
-      <HintPath>..\bin\Debug\net8.0-windows\ZstdSharp.dll</HintPath>
-    </Reference>
-    <Reference Include="SixLabors.ImageSharp">
-      <HintPath>..\bin\Debug\net8.0-windows\SixLabors.ImageSharp.dll</HintPath>
-    </Reference>
+    <ProjectReference Include="..\App\KK_CardCompression.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="LZMA-SDK" Version="19.0.0" />

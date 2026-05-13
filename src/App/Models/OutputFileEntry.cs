@@ -10,8 +10,8 @@ namespace KK_CardCompression.Models
 
         public long OriginalSizeBytes { get; private set; }
         public long OutputSizeBytes   => File.Exists(FullPath) ? new FileInfo(FullPath).Length : 0;
-        public string OriginalFormatted => FormatSize(OriginalSizeBytes);
-        public string OutputFormatted   => FormatSize(OutputSizeBytes);
+        public string OriginalFormatted => FileSizeFormatter.Format(OriginalSizeBytes);
+        public string OutputFormatted   => FileSizeFormatter.Format(OutputSizeBytes);
 
         public int ProgressPercent
         {
@@ -80,12 +80,5 @@ namespace KK_CardCompression.Models
             OnPropertyChanged(nameof(CompressionRatioText));
         }
 
-        private static string FormatSize(long bytes)
-        {
-            if (bytes < 1024) return $"{bytes} B";
-            if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
-            if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F2} MB";
-            return $"{bytes / (1024.0 * 1024 * 1024):F2} GB";
-        }
     }
 }

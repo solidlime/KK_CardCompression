@@ -18,7 +18,13 @@ namespace KK_CardCompression.PngCompression
 
     public class PngCompression
     {
-        public float GetScaleTimes(string token) => (token == Token.StudioToken) ? .14375f : .30423f;
+        private const int MarkerRaw = 100;
+        private const int MarkerLzma = 101;
+        private const int CompareBufferSize = 1 << 10; // 1024 bytes
+        private const int LzmaDictionarySize = 1 << 26; // 64 MiB
+        private const int LzmaPosStateBits = 2;
+        private const int LzmaLitContextBits = 3;
+        private const int LzmaLitPosBits = 0;
 
         public long Save(string inputPath, string outputPath, string token = null, byte[] pngData = null, ProgressCallback compressProgress = null, bool doCompare = true, ProgressCallback compareProgress = null)
         {
@@ -69,15 +75,15 @@ namespace KK_CardCompression.PngCompression
                 switch (token)
                 {
                     case Token.StudioToken:
-                        binaryWriter.Write(new Version(101, 0, 0, 0).ToString());
+                        binaryWriter.Write(new Version(MarkerLzma, 0, 0, 0).ToString());
                         break;
                     case Token.CoordinateToken:
-                        binaryWriter.Write(101);
+                        binaryWriter.Write(MarkerLzma);
                         break;
                     default:
                         if (token.IndexOf(Token.CharaToken) >= 0)
                         {
-                            binaryWriter.Write(101);
+                            binaryWriter.Write(MarkerLzma);
                             break;
                         }
                         throw new IOException("PNG token does not match compression marker.");
@@ -100,7 +106,7 @@ namespace KK_CardCompression.PngCompression
                             LZMA.Decompress(msCompressed, msDecompressed);
                             inputStream.Seek(fileStreamPos, SeekOrigin.Begin);
                             msDecompressed.Seek(0, SeekOrigin.Begin);
-                            int bufferSize = 1 << 10;
+                            int bufferSize = CompareBufferSize;
                             byte[] originalBuffer = new byte[(int)bufferSize];
                             byte[] decompressedBuffer = new byte[(int)bufferSize];
 
@@ -184,7 +190,7 @@ namespace KK_CardCompression.PngCompression
                         case Token.StudioToken:
                             try
                             {
-                                checkfail = !new Version(binaryReader.ReadString()).Equals(new Version(101, 0, 0, 0));
+                                checkfail = !new Version(binaryReader.ReadString()).Equals(new Version(MarkerLzma, 0, 0, 0));
                             }
                             catch
                             {
@@ -193,7 +199,7 @@ namespace KK_CardCompression.PngCompression
                             break;
                         case Token.CoordinateToken:
                         default:
-                            checkfail = 101 != binaryReader.ReadInt32();
+                            checkfail = MarkerLzma != binaryReader.ReadInt32();
                             break;
                     }
 
@@ -239,7 +245,7 @@ namespace KK_CardCompression.PngCompression
             try
             {
                 int r = binaryReader.ReadInt32();
-                if (r != 101 && r != 100)
+                if (r != MarkerLzma && r != MarkerRaw)
                 {
                     return Token.StudioToken;
                 }
@@ -253,8 +259,9 @@ namespace KK_CardCompression.PngCompression
                     return Token.CoordinateToken;
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"[WARN] GuessToken failed: {ex.Message}");
                 return null;
             }
             finally
@@ -272,9 +279,9 @@ namespace KK_CardCompression.PngCompression
                 int r = binaryReader.ReadInt32();
                 switch (r)
                 {
-                    case 101:
+                    case MarkerLzma:
                         return true;
-                    case 100:
+                    case MarkerRaw:
                         return false;
                     default:
                         binaryReader.BaseStream.Seek(position, SeekOrigin.Begin);
@@ -282,7 +289,7 @@ namespace KK_CardCompression.PngCompression
                         try
                         {
                             Version version = new Version(st);
-                            return version.Major == 101;
+                            return version.Major == MarkerLzma;
                         }
                         catch
                         {
@@ -290,8 +297,10 @@ namespace KK_CardCompression.PngCompression
                         }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                // 読み取り失敗 = ファイルが短すぎる・破損している・非KKファイル
+                System.Diagnostics.Debug.WriteLine($"[WARN] GuessCompressed failed: {ex.Message}");
                 return false;
             }
             finally

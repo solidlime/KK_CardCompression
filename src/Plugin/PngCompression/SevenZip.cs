@@ -7,26 +7,16 @@ namespace KK_CardCompression.SevenZip
     public enum LzmaSpeed : int
     {
         Fastest = 5,
-        VeryFast = 8,
-        Fast = 16,
-        Medium = 32,
-        Slow = 64,
-        VerySlow = 128,
     }
 
     public enum DictionarySize : int
     {
-        VerySmall = 1 << 16,
-        Small = 1 << 20,
-        Medium = 1 << 22,
-        Large = 1 << 23,
-        Larger = 1 << 24,
         VeryLarge = 1 << 26,
     }
 
     public static class LZMA
     {
-        public static void Compress(Stream input, Stream output, LzmaSpeed speed = LzmaSpeed.Fastest, DictionarySize dictionarySize = DictionarySize.VerySmall, LongProgressCallback onProgress = null)
+        public static void Compress(Stream input, Stream output, LzmaSpeed speed = LzmaSpeed.Fastest, DictionarySize dictionarySize = DictionarySize.VeryLarge, LongProgressCallback onProgress = null)
         {
             int posStateBits = 2;
             int litContextBits = 3;

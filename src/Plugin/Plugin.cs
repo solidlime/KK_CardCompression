@@ -29,7 +29,6 @@ namespace KK_CardCompression
         internal const string PLUGIN_NAME = "KK Card Compression";
         internal const string GUID = "com.raurau.kk.cardcompression";
         internal const string PLUGIN_VERSION = "1.0.0";
-        internal const string PLUGIN_RELEASE_VERSION = "1.0.0";
         public static ConfigEntry<bool> Enable { get; private set; }
         public static ConfigEntry<bool> DeleteOriginalFile { get; private set; }
         public static ConfigEntry<bool> DisplayMessage { get; private set; }
@@ -71,9 +70,9 @@ namespace KK_CardCompression
             DeleteOriginalFile = Config.Bind<bool>("Settings", "Delete the original file", true, "The original saved file will be automatically overwritten.");
             DisplayMessage = Config.Bind<bool>("Settings", "Display compression message on screen", true);
             SkipSaveCheck = Config.Bind<bool>("Settings", "Skip bytes compare when saving", false, "!!!Use this at your own risk!!!!");
-            EnableOnCharaSaving = Config.Bind<bool>("Enable at Where", "Character", true, "Enable compress when saving characters.");
+            EnableOnCharaSaving = Config.Bind<bool>("Enable at Where", "Character", false, "Enable compress when saving characters.");
 
-            EnableOnCoordinateSaving = Config.Bind<bool>("Enable at Where", "Coordinate", true, "Enable compress when saving coordinates.");
+            EnableOnCoordinateSaving = Config.Bind<bool>("Enable at Where", "Coordinate", false, "Enable compress when saving coordinates.");
             EnableOnStudioSceneSaving = Config.Bind<bool>("Enable at Where", "Studio Scene", true, "Enable compress when saving scenes.");
 
             // Harmony 2.x compatible: use named parameters for Patch()
@@ -216,11 +215,7 @@ namespace KK_CardCompression
 
                 if (newSize > 0)
                 {
-                    LogLevel logLevel = Plugin.DisplayMessage.Value ? (LogLevel.Message | LogLevel.Info) : LogLevel.Info;
-                    Logger.LogInfo($"Compression test SUCCESS");
-                    Logger.Log(logLevel, $"Compression finish in {Time.time - startTime:n2} seconds");
-                    Logger.Log(logLevel, $"Size compress from {originalSize} bytes to {newSize} bytes");
-                    Logger.Log(logLevel, $"Compress ratio: {Convert.ToDecimal(originalSize) / newSize:n3}/1, which means it is now {Convert.ToDecimal(newSize) / originalSize:p3} big.");
+                    LogCompressionSuccess(originalSize, newSize, startTime);
 
                     File.Copy(tempPath, compressedPath, true);
                     Logger.LogDebug($"Write to: {compressedPath}");
@@ -243,29 +238,7 @@ namespace KK_CardCompression
 
                 if (e is IOException && newSize > 0)
                 {
-                    try
-                    {
-                        if (File.Exists(tempPath))
-                        {
-                            if (Plugin.DeleteOriginalFile.Value)
-                            {
-                                File.Copy(tempPath, path, true);
-                            }
-                        }
-                    }
-                    catch (Exception ex2)
-                    {
-                        Logger.LogError($"Fallback copy also failed: {ex2.GetType().Name} - {ex2.Message}");
-                        if (path.Length < 5)
-                        {
-                            Logger.LogError("Path too short: " + path);
-                        }
-                        else
-                        {
-                            File.Copy(tempPath, path.Substring(0, path.Length - 4) + "_compressed2.png");
-                            Logger.LogError("Overwrite was FAILED twice. Fallback to use the '_compressed2' path.");
-                        }
-                    }
+                    HandleCompressionError(tempPath, path, Plugin.DeleteOriginalFile.Value);
                 }
                 else
                 {
@@ -349,25 +322,9 @@ namespace KK_CardCompression
                 if (0 != loadResult)
                 {
                     // Post-decompression validation: verify PNG signature
-                    try
+                    if (!IsValidPngFile(tmpPath))
                     {
-                        byte[] header = new byte[8];
-                        using (var fs = new FileStream(tmpPath, FileMode.Open, FileAccess.Read, FileShare.Read))
-                            fs.Read(header, 0, 8);
-                        byte[] expectedPng = new byte[8] { 137, 80, 78, 71, 13, 10, 26, 10 };
-                        for (int i = 0; i < 8; i++)
-                        {
-                            if (header[i] != expectedPng[i])
-                            {
-                                Logger.LogError($"Decompressed file validation FAILED: invalid PNG signature in {fileName}");
-                                File.Delete(tmpPath);
-                                return null;
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.LogError($"Decompressed file validation error: {ex.Message}");
+                        Logger.LogError($"Decompressed file validation FAILED: invalid PNG signature in {fileName}");
                         File.Delete(tmpPath);
                         return null;
                     }
@@ -400,6 +357,57 @@ namespace KK_CardCompression
                 Plugin.Progress = "";
             }
             return null;
+        }
+
+        private static bool IsValidPngFile(string filePath)
+        {
+            try
+            {
+                byte[] header = new byte[ImageHelper.PngSignature.Length];
+                using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    fs.Read(header, 0, ImageHelper.PngSignature.Length);
+                for (int i = 0; i < ImageHelper.PngSignature.Length; i++)
+                    if (header[i] != ImageHelper.PngSignature[i])
+                        return false;
+                return true;
+            }
+            catch { return false; }
+        }
+
+        private static void LogCompressionSuccess(long originalSize, long newSize, float startTime)
+        {
+            LogLevel logLevel = Plugin.DisplayMessage.Value ? (LogLevel.Message | LogLevel.Info) : LogLevel.Info;
+            Logger.LogInfo("Compression test SUCCESS");
+            Logger.Log(logLevel, $"Compression finish in {Time.time - startTime:n2} seconds");
+            Logger.Log(logLevel, $"Size compress from {originalSize} bytes to {newSize} bytes");
+            Logger.Log(logLevel, $"Compress ratio: {Convert.ToDecimal(originalSize) / newSize:n3}/1, which means it is now {Convert.ToDecimal(newSize) / originalSize:p3} big.");
+        }
+
+        private static void HandleCompressionError(string tempPath, string path, bool deleteOriginal)
+        {
+            if (File.Exists(tempPath))
+            {
+                try
+                {
+                    if (deleteOriginal)
+                    {
+                        File.Copy(tempPath, path, true);
+                    }
+                }
+                catch (Exception ex2)
+                {
+                    Logger.LogError($"Fallback copy also failed: {ex2.GetType().Name} - {ex2.Message}");
+                    if (path.Length < 5)
+                    {
+                        Logger.LogError("Path too short: " + path);
+                    }
+                    else
+                    {
+                        File.Copy(tempPath, path.Substring(0, path.Length - 4) + "_compressed2.png");
+                        Logger.LogError("Overwrite was FAILED twice. Fallback to use the '_compressed2' path.");
+                    }
+                }
+            }
         }
         #endregion
     }

@@ -7,6 +7,7 @@
         AllowDrop="True"
         Drop="Window_Drop"
         DragEnter="Window_DragEnter"
+        Closing="Window_Closing"
         Background="#F4F6FB"
         FontFamily="Yu Gothic UI">
 

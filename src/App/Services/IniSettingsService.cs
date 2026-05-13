@@ -9,6 +9,17 @@ namespace KK_CardCompression.Services
         public string LastOutputDirectory { get; set; } = string.Empty;
         public bool PreviewEnabled { get; set; } = true;
         public bool LowCpuPriority { get; set; } = false;
+
+        /// <summary>ウィンドウ幅（px）。0 の場合はデフォルト値を使用。</summary>
+        public int WindowWidth { get; set; }
+        /// <summary>ウィンドウ高さ（px）。0 の場合はデフォルト値を使用。</summary>
+        public int WindowHeight { get; set; }
+        /// <summary>ウィンドウの左端位置（px）。</summary>
+        public int WindowLeft { get; set; }
+        /// <summary>ウィンドウの上端位置（px）。</summary>
+        public int WindowTop { get; set; }
+        /// <summary>ウィンドウ状態（Normal / Maximized）。</summary>
+        public string WindowState { get; set; } = "Normal";
     }
 
     public static class IniSettingsService
@@ -48,6 +59,25 @@ namespace KK_CardCompression.Services
                 if (map.TryGetValue("LowCpuPriority", out var lcp)
                     && bool.TryParse(lcp, out var lc))
                     settings.LowCpuPriority = lc;
+
+                if (map.TryGetValue("WindowWidth", out var ww)
+                    && int.TryParse(ww, out var wwv))
+                    settings.WindowWidth = wwv;
+
+                if (map.TryGetValue("WindowHeight", out var wh)
+                    && int.TryParse(wh, out var whv))
+                    settings.WindowHeight = whv;
+
+                if (map.TryGetValue("WindowLeft", out var wl)
+                    && int.TryParse(wl, out var wlv))
+                    settings.WindowLeft = wlv;
+
+                if (map.TryGetValue("WindowTop", out var wt)
+                    && int.TryParse(wt, out var wtv))
+                    settings.WindowTop = wtv;
+
+                if (map.TryGetValue("WindowState", out var ws))
+                    settings.WindowState = ws;
             }
             catch (Exception ex)
             {
@@ -67,6 +97,11 @@ namespace KK_CardCompression.Services
                 $"LastOutputDirectory={settings.LastOutputDirectory}",
                 $"PreviewEnabled={settings.PreviewEnabled}",
                 $"LowCpuPriority={settings.LowCpuPriority}",
+                $"WindowWidth={settings.WindowWidth}",
+                $"WindowHeight={settings.WindowHeight}",
+                $"WindowLeft={settings.WindowLeft}",
+                $"WindowTop={settings.WindowTop}",
+                $"WindowState={settings.WindowState}",
                 string.Empty,
             });
 

@@ -5,13 +5,7 @@ namespace KK_CardCompression.Extension
 {
     public static class ImageHelper
     {
-        public static byte[] ReadToEnd(Stream stream)
-        {
-            if (stream == null) throw new ArgumentNullException(nameof(stream));
-            using var memoryStream = new MemoryStream();
-            stream.CopyTo(memoryStream);
-            return memoryStream.ToArray();
-        }
+        internal static readonly byte[] PngSignature = { 137, 80, 78, 71, 13, 10, 26, 10 };
 
         public static long GetPngSize(BinaryReader br) => GetPngSize(br.BaseStream);
 
@@ -23,7 +17,7 @@ namespace KK_CardCompression.Extension
             try
             {
                 byte[] pngSignature = new byte[8];
-                byte[] ihdrData = new byte[8] { 137, 80, 78, 71, 13, 10, 26, 10 };
+                byte[] ihdrData = PngSignature;
                 st.Read(pngSignature, 0, 8);
                 for (int i = 0; i < 8; i++)
                 {

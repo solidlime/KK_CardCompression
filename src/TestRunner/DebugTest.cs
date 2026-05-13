@@ -35,7 +35,7 @@ class DebugTest
         using var br = new BinaryReader(fs);
 
         long pngStart = fs.Position;
-        SkipPng(br);
+        CompressionService.SkipPng(br);
         long pngEnd = fs.Position;
         long pngSize = pngEnd - pngStart;
 
@@ -48,7 +48,7 @@ class DebugTest
             int marker = br.ReadInt32();
             fs.Seek(-4, SeekOrigin.Current);
 
-            if (marker == 100 || marker == 101)
+            if (marker == KkFormatMarker.Raw || marker == KkFormatMarker.Lzma)
             {
                 Console.WriteLine($"  Marker (int32): {marker}");
                 br.ReadInt32();
@@ -72,8 +72,8 @@ class DebugTest
         using var fa = File.OpenRead(originalPath);
         using var fb = File.OpenRead(decompressedPath);
 
-        SkipPng(new BinaryReader(fa));
-        SkipPng(new BinaryReader(fb));
+        CompressionService.SkipPng(new BinaryReader(fa));
+        CompressionService.SkipPng(new BinaryReader(fb));
 
         long posA = fa.Position;
         long posB = fb.Position;
@@ -113,18 +113,5 @@ class DebugTest
         }
     }
 
-    static void SkipPng(BinaryReader br)
-    {
-        br.ReadBytes(8);
-        while (true)
-        {
-            byte[] lenBytes = br.ReadBytes(4);
-            int length = (lenBytes[0] << 24) | (lenBytes[1] << 16) | (lenBytes[2] << 8) | lenBytes[3];
-            byte[] type = br.ReadBytes(4);
-            br.ReadBytes(length);
-            br.ReadBytes(4);
-            if (type[0] == 'I' && type[1] == 'E' && type[2] == 'N' && type[3] == 'D')
-                break;
-        }
-    }
+
 }

@@ -6,7 +6,7 @@ KK_CardCompression - コイカツ用キャラカード/シーンデータ/衣装
 
 ## 学習した知識・教訓
 - コイカツカードファイルはPNG形式だが、内部に追加データが含まれる
-- NuGetパッケージ: `LZMA-SDK 19.0.0`, `SixLabors.ImageSharp 3.1.12`, `ZstdSharp.Port 0.8.8`
+- NuGetパッケージ: `LZMA-SDK 19.0.0`, `SixLabors.ImageSharp 3.1.12`
 - `SevenZip.Compression.LZMA` 名前空間の衝突に注意
 - `.sync-conflict-*` ファイルと `test/` ディレクトリは csproj で除外必須
 - `GenerateAssemblyInfo=false` 使用時、obj/ 内の自動生成属性と競合する場合は `rm -Recurse -Force obj` で解決
@@ -16,15 +16,15 @@ KK_CardCompression - コイカツ用キャラカード/シーンデータ/衣装
 ## KK ファイルフォーマット（PNG 末尾以降）
 ### キャラ / 衣装
 ```
-[PNG bytes] [int32(LE): 100=未圧縮/101=LZMA/102=Zstd辞書なし/103=Zstd辞書あり] [BinaryWriter string: token] [data or compressed]
+[PNG bytes] [int32(LE): 100=未圧縮/101=LZMA] [BinaryWriter string: token] [data or compressed]
 ```
 ### スタジオ
 ```
-[PNG bytes] [BinaryWriter string: "100.0.0.0"/"101.0.0.0"/"102.0.0.0"/"103.0.0.0"] [BinaryWriter string: "【KStudio】"] [data or compressed]
+[PNG bytes] [BinaryWriter string: "100.0.0.0"/"101.0.0.0"] [BinaryWriter string: "【KStudio】"] [data or compressed]
 ```
 ### 圧縮時の構造
 ```
-[PNG] [圧縮マーカー(101/102/103)] [トークン] [圧縮(元マーカー100 + トークン + ゲームデータ)]
+[PNG] [圧縮マーカー(101)] [トークン] [圧縮(元マーカー100 + トークン + ゲームデータ)]
 ```
 ### 解凍後の構造
 ```
@@ -44,28 +44,19 @@ KK_CardCompression - コイカツ用キャラカード/シーンデータ/衣装
 | 設定 | 圧縮率 | 速度 |
 |------|--------|------|
 | LZMA-Max | 94.9% | 2052ms |
-| Zstd-Better | 95.5% | 554ms |
-| Zstd-Best | 94.7% | 1969ms |
 
 ### 圧縮率比較（シーンファイル）
 | 設定 | 圧縮率 | 速度 |
 |------|--------|------|
 | LZMA-Max | 63.3% | 1432ms |
-| Zstd-Better | 65.2% | 498ms |
-| Zstd-Best | 64.9% | 622ms |
-| Zstd+辞書 | 65.2% | 500ms |
-| Zstd+辞書+PNG再圧縮 | 58.4% | 12963ms |
 
 ### PNG再圧縮効果（キャラファイル）
 - Pillow BestCompression: 43.0MB → 38.0MB（11.7%削減）
 - 透過ピクセル52.6%のテクスチャ: 2217KB → 1825KB（17.7%削減）
 - **RGBAアルファチャンネルは完全に保持される（ロスレス再エンコード）**
 
-## Zstd辞書
-- 辞書ファイル: `Resources/kk_universal_dict.zstd` (112,640 bytes)
-- EmbeddedResource としてビルドに組み込み
-- 学習データ: 489サンプル（test/ディレクトリ）
-- 効果: 小さいファイルで35.8%改善、大きなファイルで0.7-0.9%改善
+## Zstd（廃止）
+- 過去に実装されていたが完全に削除。コード、NuGetパッケージ（ZstdSharp.Port）、辞書ファイル（Resources/kk_universal_dict.zstd）は全て除去済み。
 
 ## トークン種別
 - キャラ: `【KoiKatuChara】sex0` (男) / `sex1` (女)
@@ -106,12 +97,10 @@ KK_CardCompression - コイカツ用キャラカード/シーンデータ/衣装
 - `SceneInfo` は `Studio.SceneInfo` 名前空間（using Studio 必須）
 
 ## 現在の実装状況
-- ✅ Zstd圧縮/解凍（辞書あり/なし両対応）
-- ✅ LZMA圧縮/解凍（後方互換）
-- ✅ マーカー100-103全対応
-- ✅ GUI統合（アルゴリズム選択ComboBox）
-- ✅ 設定保存/読み込み（アルゴリズム・Zstdレベル）
-- ✅ 辞書学習ツール（tools/train_dictionary.py）
+- ✅ LZMA圧縮/解凍（マーカー101）
+- ✅ マーカー100-101対応
+- ✅ GUI統合
+- ✅ 設定保存/読み込み（プレビュー・低CPU優先度・ウィンドウサイズ）
 - ✅ 埋め込みPNG再圧縮（全ファイル種別対応）
 - ✅ ラウンドトリップテスト全PASS
 - ✅ BepInEx プラグイン（KK_SaveLoadCompression.Plugin）— KK 実アセンブリ検証・バグ修正済み
@@ -121,4 +110,6 @@ KK_CardCompression - コイカツ用キャラカード/シーンデータ/衣装
 - ✅ ChaFile.CheckData パッチ削除（KK非存在メソッド）
 - ✅ ImageHelper Unity依存分離 → UnityImageHelper（TypeLoadException修正）
 - ✅ MakeWatermarkPic try-catch フォールバック追加
+- ❌ Zstd圧縮 — 廃止（コード・NuGetパッケージ・辞書ファイル全削除済み）
+- ❌ Zstd辞書学習ツール — 廃止
 - 🔲 大規模ベンチマーク（568MBシーンファイル）

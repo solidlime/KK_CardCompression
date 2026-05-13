@@ -71,18 +71,74 @@ namespace KK_CardCompression
             _isLowCpuPriority = settings.LowCpuPriority;
             TglLowCpu.IsChecked = _isLowCpuPriority;
 
+            RestoreWindowPosition(settings);
+
             _isInitialized = true;
+        }
+
+        private void RestoreWindowPosition(AppSettings settings)
+        {
+            if (settings.WindowWidth > 0 && settings.WindowHeight > 0)
+            {
+                Width = settings.WindowWidth;
+                Height = settings.WindowHeight;
+            }
+
+            if (settings.WindowLeft >= 0 && settings.WindowTop >= 0)
+            {
+                Left = settings.WindowLeft;
+                Top = settings.WindowTop;
+            }
+
+            if (Enum.TryParse<WindowState>(settings.WindowState, out var state))
+                WindowState = state;
         }
 
         private void SaveSettings()
         {
             if (!_isInitialized) return;
+
+            var (width, height, left, top) = GetNormalWindowBounds();
+
             IniSettingsService.Save(new AppSettings
             {
                 LastOutputDirectory  = _outputDirectory,
                 PreviewEnabled       = _isPreviewEnabled,
                 LowCpuPriority       = _isLowCpuPriority,
+                WindowWidth          = width,
+                WindowHeight         = height,
+                WindowLeft           = left,
+                WindowTop            = top,
+                WindowState          = WindowState.ToString(),
             });
+        }
+
+        /// <summary>
+        /// 通常（非最大化）状態のウィンドウサイズと位置を返す。
+        /// 最大化中でも RestoreBounds から通常サイズを取得する。
+        /// </summary>
+        private (int width, int height, int left, int top) GetNormalWindowBounds()
+        {
+            if (WindowState == WindowState.Maximized)
+            {
+                return (
+                    (int)RestoreBounds.Width,
+                    (int)RestoreBounds.Height,
+                    (int)RestoreBounds.Left,
+                    (int)RestoreBounds.Top
+                );
+            }
+            return (
+                (int)Width,
+                (int)Height,
+                (int)Left,
+                (int)Top
+            );
+        }
+
+        private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            SaveSettings();
         }
 
         private void TglPreviewEnabled_Changed(object sender, RoutedEventArgs e)
@@ -460,26 +516,13 @@ namespace KK_CardCompression
 
         private async Task ProcessFilesAsync(bool? compress)
         {
-            if (_inputFiles.Count == 0)
-            {
-                MessageBox.Show("処理するファイルがありません。");
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(_outputDirectory))
-            {
-                MessageBox.Show("出力先を設定してください。");
-                return;
-            }
-
-            _outputFiles.Clear();
-            UpdateOutputCount();
+            if (_inputFiles.Count == 0) { MessageBox.Show("処理するファイルがありません。"); return; }
+            if (string.IsNullOrWhiteSpace(_outputDirectory)) { MessageBox.Show("出力先を設定してください。"); return; }
 
             _stopwatch.Restart();
             ProgressBar.Value = 0;
             TxtStatus.Text = "処理開始";
             TxtStats.Text = string.Empty;
-
             SetProcessingState(true);
 
             if (TglLowCpu.IsChecked == true)
@@ -487,23 +530,12 @@ namespace KK_CardCompression
 
             _cts = new CancellationTokenSource();
             var token = _cts.Token;
-
             var files = _inputFiles.ToList();
             int total = files.Count;
 
-            var entries = new OutputFileEntry[total];
-            var doCompressFlags = new bool[total];
-            for (int i = 0; i < total; i++)
-            {
-                var source = files[i];
-                doCompressFlags[i] = compress ?? !CompressionService.IsCompressed(source.FullPath);
-                string relativePath = GetRelativePath(source.FullPath, files.Select(f => f.FullPath).ToList());
-                string outputPath = Path.Combine(_outputDirectory, relativePath);
-                entries[i] = new OutputFileEntry(outputPath, source.SizeBytes) { ProgressPercent = 0 };
-                _outputFiles.Add(entries[i]);
-            }
-            UpdateOutputCount();
+            var entries = InitializeProcessBatch(files, compress, out var doCompressFlags);
 
+            // 並列処理
             int maxConcurrency = Math.Max(1, Environment.ProcessorCount);
             using var semaphore = new SemaphoreSlim(maxConcurrency, maxConcurrency);
             var counters = new int[4];
@@ -517,71 +549,95 @@ namespace KK_CardCompression
                     {
                         entries[i].ProgressPercent = (int)Math.Round(p * 100.0);
                     });
-
                     ProcessResult result;
-                    try
-                    {
-                        result = await Task.Run(
-                            () => ProcessSingleFile(source.FullPath, doCompressFlags[i], progress),
-                            token);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        return;
-                    }
-
-                    if (result.Skipped)
-                    {
-                        Interlocked.Increment(ref counters[3]);
-                        entries[i].IsSkipped = true;
-                        // ProgressPercent stays 0, IsProcessingComplete stays false
-                    }
-                    else if (result.Success)
-                    {
-                        Interlocked.Increment(ref counters[0]);
-                        entries[i].ProgressPercent = 100;
-                        entries[i].IsProcessingComplete = true;
-                        await Dispatcher.InvokeAsync(() => entries[i].RefreshComputed());
-                    }
-                    else
-                    {
-                        Interlocked.Increment(ref counters[1]);
-                        entries[i].ProgressPercent = 0;
-                    }
-
-                    int done = Interlocked.Increment(ref counters[2]);
-                    await Dispatcher.InvokeAsync(() =>
-                    {
-                        ProgressBar.Value = done * 100.0 / total;
-                        TxtStatus.Text = $"処理中... ({done}/{total})";
-                    });
+                    try { result = await Task.Run(() => ProcessSingleFile(source.FullPath, doCompressFlags[i], progress), token); }
+                    catch (OperationCanceledException) { return; }
+                    await ApplyProcessResult(i, entries[i], result, counters, total);
                 }
-                finally
-                {
-                    semaphore.Release();
-                }
+                finally { semaphore.Release(); }
             }).ToArray();
 
-            try
+            try { await Task.WhenAll(tasks); }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+
+            FinalizeProcessBatch(files, counters, total, token.IsCancellationRequested);
+        }
+
+        /// <summary>
+        /// 出力先をクリアし、処理対象ファイルのエントリ一覧と圧縮フラグを準備する。
+        /// </summary>
+        private OutputFileEntry[] InitializeProcessBatch(
+            List<FileEntry> files,
+            bool? compress,
+            out bool[] doCompressFlags)
+        {
+            _outputFiles.Clear();
+            UpdateOutputCount();
+
+            var entries = new OutputFileEntry[files.Count];
+            doCompressFlags = new bool[files.Count];
+            for (int i = 0; i < files.Count; i++)
             {
-                await Task.WhenAll(tasks);
+                var source = files[i];
+                doCompressFlags[i] = compress ?? !CompressionService.IsCompressed(source.FullPath);
+                string relativePath = GetRelativePath(source.FullPath, files.Select(f => f.FullPath).ToList());
+                string outputPath = Path.Combine(_outputDirectory, relativePath);
+                entries[i] = new OutputFileEntry(outputPath, source.SizeBytes) { ProgressPercent = 0 };
+                _outputFiles.Add(entries[i]);
             }
-            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            UpdateOutputCount();
+            return entries;
+        }
+
+        /// <summary>
+        /// 単一ファイルの処理結果をカウンターとUIに反映する。
+        /// Returns: このファイルがスキップされたかどうか
+        /// </summary>
+        private async Task ApplyProcessResult(
+            int index, OutputFileEntry entry, ProcessResult result,
+            int[] counters, int total)
+        {
+            if (result.Skipped)
             {
-                // キャンセル済み
+                Interlocked.Increment(ref counters[3]);
+                entry.IsSkipped = true;
+            }
+            else if (result.Success)
+            {
+                Interlocked.Increment(ref counters[0]);
+                entry.ProgressPercent = 100;
+                entry.IsProcessingComplete = true;
+                await Dispatcher.InvokeAsync(() => entry.RefreshComputed());
+            }
+            else
+            {
+                Interlocked.Increment(ref counters[1]);
+                entry.ProgressPercent = 0;
             }
 
+            int done = Interlocked.Increment(ref counters[2]);
+            await Dispatcher.InvokeAsync(() =>
+            {
+                ProgressBar.Value = done * 100.0 / total;
+                TxtStatus.Text = $"処理中... ({done}/{total})";
+            });
+        }
+
+        /// <summary>
+        /// 全ファイルの処理完了後の後始末と統計表示を行う。
+        /// </summary>
+        private void FinalizeProcessBatch(
+            List<FileEntry> files, int[] counters, int total, bool cancelled)
+        {
             _stopwatch.Stop();
-
             Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.Normal;
-
             SetProcessingState(false);
 
             int successCount = counters[0];
             int failCount = counters[1];
             int skipCount = counters[3];
             UpdateStats(files, successCount, failCount, skipCount);
-            TxtStatus.Text = token.IsCancellationRequested
+            TxtStatus.Text = cancelled
                 ? $"中止しました ({successCount}/{total} 完了, {skipCount} スキップ)"
                 : $"処理完了 ({successCount}/{total} 成功, {skipCount} スキップ)";
         }
@@ -610,6 +666,8 @@ namespace KK_CardCompression
                     if (CompressionService.IsCompressed(inputPath))
                     {
                         progress.Report(1.0);
+                        if (File.Exists(backupPath))
+                            File.Delete(backupPath);
                         return new ProcessResult(true, null, Skipped: true);
                     }
                     else
@@ -620,6 +678,8 @@ namespace KK_CardCompression
                     if (!CompressionService.IsCompressed(inputPath))
                     {
                         progress.Report(1.0);
+                        if (File.Exists(backupPath))
+                            File.Delete(backupPath);
                         return new ProcessResult(true, null, Skipped: true);
                     }
                     CompressionService.DecompressFile(inputPath, outputPath, progress);

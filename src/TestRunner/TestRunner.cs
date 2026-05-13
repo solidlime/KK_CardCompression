@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Diagnostics;
 using KK_CardCompression.Services;
+using KK_CardCompression.Models;
 
 class TestRunner
 {
@@ -39,7 +40,7 @@ class TestRunner
             totalOriginal += originalSize;
 
             Console.Write($"[{Path.GetDirectoryName(relative)}] {Path.GetFileName(file)}");
-            Console.Write($" ({FormatSize(originalSize)})");
+            Console.Write($" ({FileSizeFormatter.Format(originalSize)})");
 
             try
             {
@@ -51,7 +52,7 @@ class TestRunner
                 totalCompressed += compressedSize;
                 double ratio = (1.0 - (double)compressedSize / originalSize) * 100.0;
 
-                Console.Write($" -> {FormatSize(compressedSize)} ({ratio:F1}% reduced, {sw.ElapsedMilliseconds}ms)");
+                Console.Write($" -> {FileSizeFormatter.Format(compressedSize)} ({ratio:F1}% reduced, {sw.ElapsedMilliseconds}ms)");
 
                 // Decompress
                 CompressionService.DecompressFile(outPath, verifyPath);
@@ -79,7 +80,7 @@ class TestRunner
         Console.WriteLine();
         Console.WriteLine("=== Results ===");
         Console.WriteLine($"Success: {success}, Failed: {fail}, Skipped: {skipped}");
-        Console.WriteLine($"Total: {FormatSize(totalOriginal)} -> {FormatSize(totalCompressed)}");
+        Console.WriteLine($"Total: {FileSizeFormatter.Format(totalOriginal)} -> {FileSizeFormatter.Format(totalCompressed)}");
         double totalRatio = (1.0 - (double)totalCompressed / totalOriginal) * 100.0;
         Console.WriteLine($"Overall reduction: {totalRatio:F1}%");
 
@@ -122,6 +123,8 @@ class TestRunner
         return true;
     }
 
+    // Note: Stream-based SkipPng. The canonical implementation is CompressionService.SkipPng(BinaryReader).
+    // This local copy uses Stream for broader compatibility with raw FileStream reads in test paths.
     static void SkipPng(Stream st)
     {
         byte[] sig = new byte[8];
@@ -141,16 +144,4 @@ class TestRunner
         }
     }
 
-    static string FormatSize(long bytes)
-    {
-        string[] sizes = { "B", "KB", "MB", "GB" };
-        int order = 0;
-        double value = bytes;
-        while (value >= 1024 && order < sizes.Length - 1)
-        {
-            order++;
-            value /= 1024;
-        }
-        return $"{value:F1} {sizes[order]}";
-    }
 }

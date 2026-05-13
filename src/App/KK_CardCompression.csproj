@@ -16,6 +16,11 @@
     <Description>KK Card Compression - Desktop compression tool for Koikatsu card PNG files</Description>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="DebugTest" />
+    <InternalsVisibleTo Include="TestRunner" />
+  </ItemGroup>
+
   <!-- Framework-dependent release configuration -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <PublishSingleFile>true</PublishSingleFile>
